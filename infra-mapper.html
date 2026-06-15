@@ -377,6 +377,29 @@
       <div style="margin-top:8px">
         <button id="btn-settings-reset" class="btn-sm danger">Reset to defaults</button>
       </div>
+      <div class="form-group" style="margin-top:16px">
+        <label>Key Node Style</label>
+        <p style="font-size:12px;color:var(--muted);margin:4px 0 8px">Applied to nodes marked as key elements.</p>
+        <div class="color-grid">
+          <div class="color-row"><label>Accent / Border</label><input type="color" id="key-node-border-color" value="#3b82f6"></div>
+          <div class="color-row">
+            <label>Border Width</label>
+            <select id="key-node-border-width" style="height:24px;padding:2px 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px">
+              <option value="2">2px</option><option value="3">3px</option><option value="4">4px</option><option value="5">5px</option>
+            </select>
+          </div>
+          <div class="color-row"><label>Background Tint</label><input type="color" id="key-node-bg-color" value="#eff6ff"></div>
+          <div class="color-row">
+            <label>Name Size</label>
+            <select id="key-node-font-size" style="height:24px;padding:2px 4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);font-size:12px">
+              <option value="13">13px</option><option value="14">14px</option><option value="15">15px</option><option value="16">16px</option>
+            </select>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="key-node-show-badge"> Show &ldquo;KEY&rdquo; badge
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button id="btn-settings-cancel" class="btn-secondary">Cancel</button>
@@ -458,16 +481,27 @@
       <div class="form-group">
         <label>Icon / Logo</label>
         <div class="node-icon-row">
-          <img id="node-icon-preview" alt="Icon" style="display:none">
+          <div id="node-icon-preview-wrap" style="width:48px;height:48px;border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--surface)">
+            <img id="node-icon-preview" alt="Icon" style="display:none;max-width:40px;max-height:40px;object-fit:contain">
+            <svg id="node-icon-svg-preview" style="display:none" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></svg>
+            <svg id="node-icon-empty" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--border)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          </div>
+          <input type="hidden" id="node-icon-key-hidden">
           <div class="icon-actions">
+            <button id="btn-choose-icon" class="btn-secondary" style="font-size:12px;padding:4px 10px">Browse icons</button>
             <label class="btn-secondary" style="cursor:pointer;padding:4px 10px;display:inline-block;font-size:12px">
-              Upload icon
+              Upload image
               <input id="node-icon-upload" type="file" accept="image/png,image/svg+xml" style="display:none">
             </label>
             <button id="node-icon-remove" class="btn-sm danger">Remove</button>
             <span class="hint-text">PNG / SVG &mdash; max 64 KB</span>
           </div>
         </div>
+      </div>
+      <div class="form-group" style="padding:4px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="node-is-key"> <span>Mark as <strong>key element</strong> &mdash; applies highlight style from Settings</span>
+        </label>
       </div>
       <div>
         <div class="connections-header">
@@ -570,6 +604,18 @@
     <div class="modal-footer">
       <button id="btn-set-target-cancel" class="btn-secondary">Cancel</button>
       <button id="btn-set-target-save" class="btn-primary">Save</button>
+    </div>
+  </div>
+
+  <!-- Icon Picker -->
+  <div id="modal-icon-picker" class="modal modal-lg hidden">
+    <div class="modal-header"><h2>Choose Icon</h2><button class="modal-close">&times;</button></div>
+    <div class="modal-body">
+      <input type="text" id="icon-picker-search" placeholder="Search icons..." style="width:100%;margin-bottom:12px;box-sizing:border-box">
+      <div id="icon-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;max-height:360px;overflow-y:auto;padding:2px"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-icon-picker-cancel" class="btn-secondary">Cancel</button>
     </div>
   </div>
 
@@ -2659,6 +2705,56 @@ const PRESET_THEMES = {
   }
 };
 
+const KEY_NODE_DEFAULTS = { borderColor: '#3b82f6', borderWidth: 3, bgColor: '#eff6ff', fontSize: 15, showBadge: true };
+
+const ICON_LIBRARY = {
+  server:         '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  database:       '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>',
+  'hard-drive':   '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
+  cpu:            '<rect x="9" y="9" width="6" height="6"/><path d="M20 9h1v6h-1M4 9H3v6h1M9 4V3h6v1M9 20v1h6v-1"/><rect x="2" y="4" width="20" height="16" rx="2"/>',
+  monitor:        '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  laptop:         '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0l1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  smartphone:     '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+  tablet:         '<rect x="4" y="2" width="16" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
+  printer:        '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  cloud:          '<path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>',
+  wifi:           '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/>',
+  globe:          '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  link:           '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  'share-2':      '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+  shield:         '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  lock:           '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  key:            '<path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>',
+  eye:            '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  users:          '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  user:           '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  home:           '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  briefcase:      '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  mail:           '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>',
+  bell:           '<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  phone:          '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.56 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  code:           '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  terminal:       '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  'git-branch':   '<line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  package:        '<line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  layers:         '<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>',
+  box:            '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>',
+  archive:        '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  folder:         '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  file:           '<path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>',
+  settings:       '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  tool:           '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  zap:            '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  truck:          '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  activity:       '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+  'bar-chart-2':  '<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',
+  map:            '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+  'check-circle': '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  'alert-triangle':'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  star:           '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  filter:         '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+};
+
 let AppState = {
   meta: {
     logoDataUrl: null,
@@ -2668,7 +2764,8 @@ let AppState = {
     ganttStartDate: new Date().toISOString().slice(0, 10),
     ganttZoom: 'months',
     ganttPpdScale: 1.0,
-    showConnections: true
+    showConnections: true,
+    keyNodeStyle: { ...KEY_NODE_DEFAULTS }
   },
   categories: [],
   upgradeTargets: [],
@@ -2830,7 +2927,7 @@ const NodeManager = (() => {
     if (!data.name?.trim() || !data.category?.trim()) return null;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    const node = { id: uuid(), name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, iconDataUrl: data.iconDataUrl || null, position: data.position || { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 } };
+    const node = { id: uuid(), name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode || false, iconDataUrl: data.iconDataUrl || null, iconKey: data.iconKey || null, position: data.position || { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 } };
     AppState.nodes.push(node);
     touchState(); AutoSave.schedule();
     return node;
@@ -2841,7 +2938,7 @@ const NodeManager = (() => {
     if (idx === -1 || !data.name?.trim() || !data.category?.trim()) return false;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    AppState.nodes[idx] = { ...AppState.nodes[idx], name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl };
+    AppState.nodes[idx] = { ...AppState.nodes[idx], name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode !== undefined ? data.isKeyNode : (AppState.nodes[idx].isKeyNode || false), iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl, iconKey: data.iconKey !== undefined ? data.iconKey : (AppState.nodes[idx].iconKey || null) };
     touchState(); AutoSave.schedule();
     return true;
   }
@@ -3045,12 +3142,13 @@ const DiagramViewController = (() => {
 
   // ── SVG Node Card ──────────────────────────────────────────
   function buildNodeSVG(opts) {
-    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, isFuture, isUnchanged, replacesCount, customWidth } = opts;
+    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, iconKey, isFuture, isUnchanged, replacesCount, customWidth, isKeyNode, keyNodeStyle } = opts;
     const theme = ThemeController.active();
 
     const W = Math.max(120, customWidth || 220), LB = 4, PL = LB + 10, PR = 10, PV = 10;
     const MAX_CONN = 5;
-    const ICON_H = iconDataUrl ? 30 : 0, ICON_GAP = iconDataUrl ? 6 : 0;
+    const hasIcon = !!(iconKey || iconDataUrl);
+    const ICON_H = hasIcon ? 30 : 0, ICON_GAP = hasIcon ? 6 : 0;
     const NAME_H = 18, CAT_H = 15;
     const shown = Math.min(connections.length, MAX_CONN);
     const hasSep = hasUpgrade || connections.length > 0;
@@ -3066,12 +3164,14 @@ const DiagramViewController = (() => {
     const bord  = theme.borderColor|| '#e2e8f0';
     const uhl   = theme.upgradeHighlight || '#fef9c3';
 
+    const kns = (isKeyNode && keyNodeStyle) ? keyNodeStyle : null;
     const bgFill = isFuture ? (surf === '#ffffff' ? '#e0f7ff' : '#0a2233')
-                 : isUnchanged ? surf : surf;
+                 : isUnchanged ? surf
+                 : (kns?.bgColor || surf);
 
     const p = [];
     p.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W*2}" height="${H*2}" viewBox="0 0 ${W} ${H}">`);
-    p.push(`<rect width="${W}" height="${H}" rx="8" fill="${bgFill}" stroke="${bord}" stroke-width="1"/>`);
+    p.push(`<rect width="${W}" height="${H}" rx="8" fill="${bgFill}" stroke="${kns ? kns.borderColor : bord}" stroke-width="${kns ? kns.borderWidth : 1}"/>`);
     p.push(`<rect x="0" y="8" width="${LB}" height="${H-16}" rx="2" fill="${categoryColor}"/>`);
 
     if (isUnchanged) {
@@ -3080,6 +3180,11 @@ const DiagramViewController = (() => {
 
     // Top-right badges
     let badgeY = 7;
+    if (kns?.showBadge) {
+      p.push(`<rect x="${W-46}" y="${badgeY}" width="40" height="15" rx="3" fill="${kns.borderColor||'#3b82f6'}"/>`);
+      p.push(`<text x="${W-26}" y="${badgeY+11}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white">KEY</text>`);
+      badgeY += 18;
+    }
     if (isFuture) {
       p.push(`<rect x="${W-52}" y="${badgeY}" width="46" height="15" rx="3" fill="#0ea5e9"/>`);
       p.push(`<text x="${W-29}" y="${badgeY+11}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white">FUTURE</text>`);
@@ -3095,15 +3200,21 @@ const DiagramViewController = (() => {
     }
 
     let y = PV;
-    if (iconDataUrl) {
-      p.push(`<image href="${iconDataUrl}" x="${PL}" y="${y}" width="28" height="28" preserveAspectRatio="xMidYMid meet"/>`);
+    if (hasIcon) {
+      if (iconKey && ICON_LIBRARY[iconKey]) {
+        const sc = (28/24).toFixed(4);
+        p.push(`<g transform="translate(${PL},${y}) scale(${sc})" fill="none" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[iconKey]}</g>`);
+      } else if (iconDataUrl) {
+        p.push(`<image href="${iconDataUrl}" x="${PL}" y="${y}" width="28" height="28" preserveAspectRatio="xMidYMid meet"/>`);
+      }
       y += ICON_H + ICON_GAP;
     }
 
+    const nameFontSize = kns ? (kns.fontSize || 15) : 13;
     const nameMax = Math.round(22 * W / 220);
     const nameStr = name.length > nameMax ? name.slice(0, nameMax-1)+'…' : name;
     const nameColor = isUnchanged ? muted : text;
-    p.push(`<text x="${PL}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
+    p.push(`<text x="${PL}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="${nameFontSize}" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
     y += NAME_H;
 
     const catMax = Math.round(28 * W / 220);
@@ -3151,9 +3262,12 @@ const DiagramViewController = (() => {
       name: node.name, category: node.category,
       categoryColor: CategoryManager.getSwimlaneColor(node.category),
       hasUpgrade: !!target, upgradeTargetName: target?.name || '',
-      connections, iconDataUrl: node.iconDataUrl,
+      connections, iconDataUrl: node.iconDataUrl || null,
+      iconKey: node.iconKey || null,
       isFuture: false, isUnchanged: false, replacesCount: 0,
-      customWidth: node.customWidth || null
+      customWidth: node.customWidth || null,
+      isKeyNode: node.isKeyNode || false,
+      keyNodeStyle: AppState.meta.keyNodeStyle || KEY_NODE_DEFAULTS
     });
   }
 
@@ -4452,6 +4566,7 @@ const ExportController = (() => {
         ganttZoom: parsed.meta?.ganttZoom || 'months',
         ganttPpdScale: parsed.meta?.ganttPpdScale || 1.0,
         showConnections: parsed.meta?.showConnections !== false,
+        keyNodeStyle: parsed.meta?.keyNodeStyle ? { ...KEY_NODE_DEFAULTS, ...parsed.meta.keyNodeStyle } : { ...KEY_NODE_DEFAULTS },
         logoDataUrl: parsed.meta?.logoDataUrl || null,
         theme: parsed.meta?.theme || 'light',
         customTheme: parsed.meta?.customTheme || { ...PRESET_THEMES.light },
@@ -4639,6 +4754,46 @@ const ModalController = (() => {
     open('modal-confirm');
   }
 
+  // ── Icon Picker ──────────────────────────────────────────
+  let _iconPickerCb = null;
+
+  function openIconPicker(callback) {
+    _iconPickerCb = callback;
+    document.getElementById('icon-picker-search').value = '';
+    renderIconGrid('');
+    open('modal-icon-picker');
+  }
+
+  function renderIconGrid(filter) {
+    const grid = document.getElementById('icon-picker-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const q = filter.toLowerCase().trim();
+    const keys = Object.keys(ICON_LIBRARY).filter(k => !q || k.includes(q));
+    if (!keys.length) {
+      grid.innerHTML = '<p style="color:var(--muted);font-size:12px;grid-column:1/-1;padding:8px 0">No icons match your search.</p>';
+      return;
+    }
+    keys.forEach(key => {
+      const cell = document.createElement('div');
+      cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .12s';
+      cell.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[key]}</svg><span style="font-size:10px;color:var(--muted);text-align:center;word-break:break-all;line-height:1.3">${key}</span>`;
+      cell.addEventListener('mouseenter', () => { cell.style.background = 'var(--bg)'; });
+      cell.addEventListener('mouseleave', () => { cell.style.background = ''; });
+      cell.addEventListener('click', () => {
+        if (_iconPickerCb) _iconPickerCb(key);
+        _iconPickerCb = null;
+        // don't call close() here — callback calls open('modal-node-editor') itself
+      });
+      grid.appendChild(cell);
+    });
+  }
+
+  function bindIconPickerEvents() {
+    document.getElementById('icon-picker-search')?.addEventListener('input', e => renderIconGrid(e.target.value));
+    document.getElementById('btn-icon-picker-cancel')?.addEventListener('click', close);
+  }
+
   // ── Settings ─────────────────────────────────────────────
   function openSettings() {
     // Sync theme option buttons
@@ -4660,6 +4815,13 @@ const ModalController = (() => {
     const lp = document.getElementById('logo-preview');
     if (AppState.meta.logoDataUrl) { lp.src = AppState.meta.logoDataUrl; lp.style.display = 'block'; }
     else { lp.src = ''; lp.style.display = 'none'; }
+
+    const kns = AppState.meta.keyNodeStyle || KEY_NODE_DEFAULTS;
+    document.getElementById('key-node-border-color').value = kns.borderColor || '#3b82f6';
+    document.getElementById('key-node-border-width').value = String(kns.borderWidth || 3);
+    document.getElementById('key-node-bg-color').value     = kns.bgColor || '#eff6ff';
+    document.getElementById('key-node-font-size').value    = String(kns.fontSize || 15);
+    document.getElementById('key-node-show-badge').checked = kns.showBadge !== false;
 
     renderCategorySwatches();
     open('modal-settings');
@@ -4729,6 +4891,13 @@ const ModalController = (() => {
         AppState.meta.customTheme.textColor        = document.getElementById('custom-text').value;
         AppState.meta.customTheme.accentColor      = document.getElementById('custom-accent').value;
       }
+      AppState.meta.keyNodeStyle = {
+        borderColor: document.getElementById('key-node-border-color').value,
+        borderWidth: parseInt(document.getElementById('key-node-border-width').value) || 3,
+        bgColor:     document.getElementById('key-node-bg-color').value,
+        fontSize:    parseInt(document.getElementById('key-node-font-size').value) || 15,
+        showBadge:   document.getElementById('key-node-show-badge').checked
+      };
       ThemeController.setTheme(nt);
       DiagramViewController.refresh();
       touchState(); AutoSave.schedule();
@@ -4850,10 +5019,25 @@ const ModalController = (() => {
     populateCategoryDropdown('node-category', node?.category || '');
     populateTargetDropdown('node-upgrade-target', node?.upgradeTargetId || '');
 
-    const iconPrev = document.getElementById('node-icon-preview');
+    document.getElementById('node-is-key').checked = node?.isKeyNode || false;
+
+    const iconPrev    = document.getElementById('node-icon-preview');
+    const iconSvgPrev = document.getElementById('node-icon-svg-preview');
+    const iconEmpty   = document.getElementById('node-icon-empty');
+    const iconKeyHid  = document.getElementById('node-icon-key-hidden');
     iconPrev.dataset.pending = '';
-    if (node?.iconDataUrl) { iconPrev.src = node.iconDataUrl; iconPrev.style.display = 'block'; }
-    else { iconPrev.src = ''; iconPrev.style.display = 'none'; }
+    iconPrev.src = ''; iconPrev.style.display = 'none';
+    if (iconSvgPrev) { iconSvgPrev.innerHTML = ''; iconSvgPrev.style.display = 'none'; }
+    iconKeyHid.value = node?.iconKey || '';
+    if (node?.iconKey && ICON_LIBRARY[node.iconKey]) {
+      if (iconSvgPrev) { iconSvgPrev.innerHTML = ICON_LIBRARY[node.iconKey]; iconSvgPrev.style.display = 'block'; }
+      if (iconEmpty) iconEmpty.style.display = 'none';
+    } else if (node?.iconDataUrl) {
+      iconPrev.src = node.iconDataUrl; iconPrev.style.display = 'block';
+      if (iconEmpty) iconEmpty.style.display = 'none';
+    } else {
+      if (iconEmpty) iconEmpty.style.display = 'block';
+    }
 
     // Load connections
     nodeEditorConns = [];
@@ -4961,20 +5145,46 @@ const ModalController = (() => {
       });
     });
 
+    document.getElementById('btn-choose-icon')?.addEventListener('click', () => {
+      openIconPicker(iconKey => {
+        const svgPrev  = document.getElementById('node-icon-svg-preview');
+        const imgPrev  = document.getElementById('node-icon-preview');
+        const empIcon  = document.getElementById('node-icon-empty');
+        const keyHid   = document.getElementById('node-icon-key-hidden');
+        if (svgPrev)  { svgPrev.innerHTML = ICON_LIBRARY[iconKey] || ''; svgPrev.style.display = 'block'; }
+        if (imgPrev)  { imgPrev.src = ''; imgPrev.style.display = 'none'; imgPrev.dataset.pending = '__removed__'; }
+        if (keyHid)   keyHid.value = iconKey;
+        if (empIcon)  empIcon.style.display = 'none';
+        open('modal-node-editor');
+      });
+    });
+
     document.getElementById('node-icon-upload')?.addEventListener('change', e => {
       const file = e.target.files[0]; if (!file) return;
       if (file.size > 64*1024) { showToast('Icon too large (max 64 KB).', 'error'); return; }
       const reader = new FileReader();
       reader.onload = evt => {
-        const prev = document.getElementById('node-icon-preview');
-        prev.src = evt.target.result; prev.style.display = 'block'; prev.dataset.pending = evt.target.result;
+        const imgPrev  = document.getElementById('node-icon-preview');
+        const svgPrev  = document.getElementById('node-icon-svg-preview');
+        const empIcon  = document.getElementById('node-icon-empty');
+        const keyHid   = document.getElementById('node-icon-key-hidden');
+        imgPrev.src = evt.target.result; imgPrev.style.display = 'block'; imgPrev.dataset.pending = evt.target.result;
+        if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; }
+        if (keyHid)   keyHid.value = '';
+        if (empIcon)  empIcon.style.display = 'none';
       };
       reader.readAsDataURL(file);
     });
 
     document.getElementById('node-icon-remove')?.addEventListener('click', () => {
-      const prev = document.getElementById('node-icon-preview');
-      prev.src = ''; prev.style.display = 'none'; prev.dataset.pending = '__removed__';
+      const imgPrev  = document.getElementById('node-icon-preview');
+      const svgPrev  = document.getElementById('node-icon-svg-preview');
+      const empIcon  = document.getElementById('node-icon-empty');
+      const keyHid   = document.getElementById('node-icon-key-hidden');
+      imgPrev.src = ''; imgPrev.style.display = 'none'; imgPrev.dataset.pending = '__removed__';
+      if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; }
+      if (keyHid)   keyHid.value = '';
+      if (empIcon)  empIcon.style.display = 'block';
     });
 
     document.getElementById('btn-node-delete')?.addEventListener('click', () => {
@@ -4992,12 +5202,21 @@ const ModalController = (() => {
 
   function saveNodeEditor() {
     const nodeId = document.getElementById('node-id-hidden').value;
+    const keyHid = document.getElementById('node-icon-key-hidden');
+    const pendingKey = keyHid?.value || '';
     const prev = document.getElementById('node-icon-preview');
     const pending = prev?.dataset.pending;
-    let iconDataUrl;
-    if (pending === '__removed__') iconDataUrl = null;
-    else if (pending) iconDataUrl = pending;
-    else iconDataUrl = undefined; // keep existing
+
+    let iconDataUrl, iconKey;
+    if (pendingKey) {
+      iconKey = pendingKey; iconDataUrl = null;
+    } else if (pending === '__removed__') {
+      iconDataUrl = null; iconKey = null;
+    } else if (pending) {
+      iconDataUrl = pending; iconKey = null;
+    } else {
+      iconDataUrl = undefined; iconKey = undefined;
+    }
 
     if (!document.getElementById('node-name').value.trim()) { showToast('Name is required.', 'error'); return; }
     if (!document.getElementById('node-category').value)    { showToast('Category is required.', 'error'); return; }
@@ -5006,7 +5225,9 @@ const ModalController = (() => {
       name: document.getElementById('node-name').value,
       category: document.getElementById('node-category').value,
       upgradeTargetId: document.getElementById('node-upgrade-target').value || null,
-      iconDataUrl
+      isKeyNode: document.getElementById('node-is-key')?.checked || false,
+      iconDataUrl,
+      iconKey
     };
 
     let savedNodeId = nodeId;
@@ -5150,12 +5371,13 @@ const ModalController = (() => {
     bindTargetEditorEvents();
     bindGanttEditEvents();
     bindNodeEditorEvents();
+    bindIconPickerEvents();
     bindAddConnectionEvents();
     bindSetTargetEvents();
     document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', close));
   }
 
-  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openGanttEdit, openNodeEditor, openAddConnection, openSetTarget, init };
+  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openGanttEdit, openNodeEditor, openAddConnection, openSetTarget, openIconPicker, init };
 })();
 
 // ================================================================
@@ -5210,8 +5432,13 @@ const AppController = (() => {
     document.getElementById(`${name}-view`)?.classList.remove('hidden');
     document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
     document.querySelector(`.view-btn[data-view="${name}"]`)?.classList.add('active');
-    if (name === 'roadmap') GanttViewController.refresh();
-    else DiagramViewController.refresh();
+    if (name === 'roadmap') {
+      GanttViewController.refresh();
+    } else {
+      const connCb = document.getElementById('toggle-connections');
+      if (connCb) connCb.checked = AppState.meta.showConnections !== false;
+      DiagramViewController.refresh();
+    }
   }
 
   function refreshAll() {
