@@ -4275,26 +4275,54 @@ const ExportController = (() => {
   async function exportDiagramPNG() { DiagramViewController.exportPNG(); }
 
   async function exportRoadmapPNG() {
-    const el = document.getElementById('gantt-container');
-    if (!el || typeof html2canvas === 'undefined') { showToast('Export not available.', 'error'); return; }
+    const body = document.getElementById('gantt-body');
+    const container = document.getElementById('gantt-container');
+    if (!body || typeof html2canvas === 'undefined') { showToast('Export not available.', 'error'); return; }
+    // Un-sticky sidebar/header so html2canvas captures the full layout in one pass
+    const restored = [];
+    body.querySelectorAll('*').forEach(el => {
+      if (el.style.position === 'sticky') {
+        restored.push([el, el.style.position, el.style.left, el.style.top, el.style.zIndex]);
+        el.style.position = 'relative';
+        el.style.left = el.style.top = el.style.zIndex = '';
+      }
+    });
+    const prevOverflow = container?.style.overflow || '';
+    if (container) container.style.overflow = 'visible';
     try {
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true });
+      const canvas = await html2canvas(body, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
       const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = 'roadmap.png'; a.click();
       showToast('Roadmap exported.', 'success');
     } catch { showToast('Export failed.', 'error'); }
+    finally {
+      restored.forEach(([el, pos, left, top, z]) => { el.style.position = pos; el.style.left = left; el.style.top = top; el.style.zIndex = z; });
+      if (container) container.style.overflow = prevOverflow;
+    }
   }
 
   async function exportPDF() {
     const activeView = document.querySelector('.view:not(.hidden)')?.id;
-    const el = activeView === 'roadmap-view'
-      ? document.getElementById('gantt-container')
-      : document.getElementById('cy-wrap');
-    if (!el || typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
+    const isRoadmap = activeView === 'roadmap-view';
+    const captureEl = isRoadmap ? document.getElementById('gantt-body') : document.getElementById('cy-wrap');
+    const container = isRoadmap ? document.getElementById('gantt-container') : null;
+    if (!captureEl || typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
       showToast('Export not available.', 'error'); return;
     }
+    const restored = [];
+    if (isRoadmap) {
+      captureEl.querySelectorAll('*').forEach(el => {
+        if (el.style.position === 'sticky') {
+          restored.push([el, el.style.position, el.style.left, el.style.top, el.style.zIndex]);
+          el.style.position = 'relative';
+          el.style.left = el.style.top = el.style.zIndex = '';
+        }
+      });
+    }
+    const prevOverflow = container?.style.overflow || '';
+    if (container) container.style.overflow = 'visible';
     try {
       showToast('Generating PDF…', 'info', 2000);
-      const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: null });
+      const canvas = await html2canvas(captureEl, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
       const imgData = canvas.toDataURL('image/jpeg', 0.92);
       const { jsPDF } = jspdf;
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
@@ -4302,10 +4330,14 @@ const ExportController = (() => {
       const pxPerMm = canvas.width / pw;
       const fw = pw, fh = Math.min(ph, canvas.height / pxPerMm);
       pdf.addImage(imgData, 'JPEG', 0, (ph - fh) / 2, fw, fh);
-      const title = (activeView === 'roadmap-view' ? AppState.meta.roadmapTitle : AppState.meta.diagramTitle) || 'export';
+      const title = (isRoadmap ? AppState.meta.roadmapTitle : AppState.meta.diagramTitle) || 'export';
       pdf.save(title.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.pdf');
       showToast('PDF exported.', 'success');
     } catch { showToast('PDF export failed.', 'error'); }
+    finally {
+      restored.forEach(([el, pos, left, top, z]) => { el.style.position = pos; el.style.left = left; el.style.top = top; el.style.zIndex = z; });
+      if (container) container.style.overflow = prevOverflow;
+    }
   }
 
   return { saveJSON, loadJSON, validateAndLoadState, exportDiagramPNG, exportRoadmapPNG, exportPDF };
