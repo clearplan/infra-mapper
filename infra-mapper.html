@@ -219,19 +219,19 @@
   </div>
   <div class="nav-spacer"></div>
   <div class="nav-actions">
-    <button id="btn-undo" class="btn-nav" title="Undo (Ctrl+Z)" disabled>&#8592; Undo</button>
-    <button id="btn-redo" class="btn-nav" title="Redo (Ctrl+Y)" disabled>Redo &#8594;</button>
-    <button id="btn-save" class="btn-nav primary">&#128190; Save</button>
-    <button id="btn-load" class="btn-nav">&#128194; Load</button>
+    <button id="btn-undo" class="btn-nav" title="Undo (Ctrl+Z)" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg> Undo</button>
+    <button id="btn-redo" class="btn-nav" title="Redo (Ctrl+Y)" disabled>Redo <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.51"/></svg></button>
+    <button id="btn-save" class="btn-nav primary"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save</button>
+    <button id="btn-load" class="btn-nav"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg> Load</button>
     <div class="export-wrapper">
-      <button id="btn-export" class="btn-nav">&#8599; Export</button>
+      <button id="btn-export" class="btn-nav"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Export</button>
       <div id="export-menu" class="hidden">
         <button id="btn-export-diagram-png" class="export-item">Diagram PNG</button>
         <button id="btn-export-roadmap-png" class="export-item">Roadmap PNG</button>
         <button id="btn-export-pdf" class="export-item">PDF (A3 Landscape)</button>
       </div>
     </div>
-    <button id="btn-settings" class="btn-nav">&#9881; Settings</button>
+    <button id="btn-settings" class="btn-nav"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> Settings</button>
   </div>
 </nav>
 
@@ -240,9 +240,9 @@
   <!-- Diagram View -->
   <div id="diagram-view" class="view">
     <div id="diagram-toolbar">
-      <button id="btn-add-node" class="btn-toolbar">+ Add Node</button>
+      <button id="btn-add-node" class="btn-toolbar"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Node</button>
       <span class="toolbar-sep"></span>
-      <button id="btn-auto-layout" class="btn-toolbar">&#11835; Auto Layout</button>
+      <button id="btn-auto-layout" class="btn-toolbar">Auto Layout</button>
       <button id="btn-toggle-state" class="btn-toolbar" data-state="current">Current State</button>
       <span class="toolbar-sep"></span>
       <button id="btn-zoom-in"  class="btn-toolbar btn-toolbar-icon" title="Zoom In">+</button>
@@ -251,6 +251,10 @@
       <span class="toolbar-sep"></span>
       <button id="btn-manage-targets"    class="btn-toolbar">Targets</button>
       <button id="btn-manage-categories" class="btn-toolbar">Categories</button>
+      <span class="toolbar-sep"></span>
+      <label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0">
+        <input type="checkbox" id="toggle-connections" checked> Connections
+      </label>
       <span class="toolbar-sep"></span>
       <input id="diagram-search" type="text" placeholder="Search...">
       <button id="btn-filter-cats" class="btn-toolbar btn-toolbar-icon" title="Filter by category">&#9776;</button>
@@ -2663,7 +2667,8 @@ let AppState = {
     lastModified: new Date().toISOString(),
     ganttStartDate: new Date().toISOString().slice(0, 10),
     ganttZoom: 'months',
-    ganttPpdScale: 1.0
+    ganttPpdScale: 1.0,
+    showConnections: true
   },
   categories: [],
   upgradeTargets: [],
@@ -3036,13 +3041,14 @@ const DiagramViewController = (() => {
   let searchQuery = '';
   let fcoseReady = false;
   let contextNodeId = null;
+  let resizeDrag = null;
 
   // ── SVG Node Card ──────────────────────────────────────────
   function buildNodeSVG(opts) {
-    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, isFuture, isUnchanged, replacesCount } = opts;
+    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, isFuture, isUnchanged, replacesCount, customWidth } = opts;
     const theme = ThemeController.active();
 
-    const W = 220, LB = 4, PL = LB + 10, PR = 10, PV = 10;
+    const W = Math.max(120, customWidth || 220), LB = 4, PL = LB + 10, PR = 10, PV = 10;
     const MAX_CONN = 5;
     const ICON_H = iconDataUrl ? 30 : 0, ICON_GAP = iconDataUrl ? 6 : 0;
     const NAME_H = 18, CAT_H = 15;
@@ -3094,12 +3100,14 @@ const DiagramViewController = (() => {
       y += ICON_H + ICON_GAP;
     }
 
-    const nameStr = name.length > 22 ? name.slice(0,21)+'…' : name;
+    const nameMax = Math.round(22 * W / 220);
+    const nameStr = name.length > nameMax ? name.slice(0, nameMax-1)+'…' : name;
     const nameColor = isUnchanged ? muted : text;
     p.push(`<text x="${PL}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
     y += NAME_H;
 
-    const catStr = category.length > 28 ? category.slice(0,27)+'…' : category;
+    const catMax = Math.round(28 * W / 220);
+    const catStr = category.length > catMax ? category.slice(0, catMax-1)+'…' : category;
     p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="${muted}">${escapeXml(catStr)}</text>`);
     y += CAT_H;
 
@@ -3116,9 +3124,10 @@ const DiagramViewController = (() => {
       y += BADGE_H;
     }
 
+    const connMax = Math.round(26 * W / 220);
     connections.slice(0, MAX_CONN).forEach(conn => {
       const full = `${conn.icon} ${conn.text}${conn.label ? ` — ${conn.label}` : ''}`;
-      const tr = full.length > 26 ? full.slice(0,25)+'…' : full;
+      const tr = full.length > connMax ? full.slice(0, connMax-1)+'…' : full;
       p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="11" fill="${muted}">${escapeXml(tr)}</text>`);
       y += 15;
     });
@@ -3136,13 +3145,15 @@ const DiagramViewController = (() => {
 
   function getNodeSVGData(node) {
     const target = node.upgradeTargetId ? UpgradeTargetManager.getById(node.upgradeTargetId) : null;
-    const connections = EdgeManager.connectionDisplays(node.id);
+    const connections = AppState.meta.showConnections !== false
+      ? EdgeManager.connectionDisplays(node.id) : [];
     return buildNodeSVG({
       name: node.name, category: node.category,
       categoryColor: CategoryManager.getSwimlaneColor(node.category),
       hasUpgrade: !!target, upgradeTargetName: target?.name || '',
       connections, iconDataUrl: node.iconDataUrl,
-      isFuture: false, isUnchanged: false, replacesCount: 0
+      isFuture: false, isUnchanged: false, replacesCount: 0,
+      customWidth: node.customWidth || null
     });
   }
 
@@ -3372,6 +3383,56 @@ const DiagramViewController = (() => {
 
     // Prevent right-click menu on canvas
     document.getElementById('cy').addEventListener('contextmenu', e => e.preventDefault());
+
+    // ── Node resize: drag right edge ──────────────────────────
+    const cyEl = document.getElementById('cy');
+
+    cy.on('mousemove', 'node', e => {
+      if (mode === 'future' || resizeDrag) return;
+      const bb = e.target.boundingBox();
+      const thr = 10 / cy.zoom();
+      cyEl.style.cursor = Math.abs(e.position.x - bb.x2) < thr ? 'ew-resize' : '';
+    });
+    cy.on('mouseout', 'node', () => { if (!resizeDrag) cyEl.style.cursor = ''; });
+
+    cyEl.addEventListener('mousedown', e => {
+      if (e.button !== 0 || mode === 'future') return;
+      const rect = cyEl.getBoundingClientRect();
+      const z = cy.zoom(), pan = cy.pan();
+      const mx = (e.clientX - rect.left - pan.x) / z;
+      const my = (e.clientY - rect.top  - pan.y) / z;
+      const thr = 10 / z;
+      const hit = cy.nodes().filter(n => {
+        if (!n.visible()) return false;
+        const bb = n.boundingBox();
+        return Math.abs(mx - bb.x2) < thr && my >= bb.y1 && my <= bb.y2;
+      })[0];
+      if (!hit) return;
+      hit.ungrabify();
+      resizeDrag = { nodeId: hit.id(), startX: e.clientX, origWidth: hit.data('w') || 220, zoom: z };
+      cyEl.style.cursor = 'ew-resize';
+      e.stopPropagation();
+
+      const onMove = ev => {
+        const newW = Math.max(120, Math.round(resizeDrag.origWidth + (ev.clientX - resizeDrag.startX) / resizeDrag.zoom));
+        const appNode = AppState.nodes.find(n => n.id === resizeDrag.nodeId);
+        if (appNode) {
+          appNode.customWidth = newW;
+          const { svgUri, width, height } = getNodeSVGData(appNode);
+          cy.getElementById(resizeDrag.nodeId).data({ svgUri, w: width, h: height });
+        }
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        cy.getElementById(resizeDrag.nodeId)?.grabify();
+        cyEl.style.cursor = '';
+        StateHistory.push(); touchState(); AutoSave.schedule();
+        resizeDrag = null;
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }, true); // capture phase — intercepts before Cytoscape's drag
   }
 
   // ── Context Menu ────────────────────────────────────────────
@@ -3625,7 +3686,10 @@ const GanttViewController = (() => {
     const ts = AppState.upgradeTargets;
     if (!ts.length) return 365;
     const max = Math.max(...ts.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
-    return Math.max(max + 90, 180);
+    const periodDays   = zoom === 'weeks' ? 7 : zoom === 'months' ? 30 : zoom === 'quarters' ? 91 : 365;
+    const bufferPeriods = zoom === 'weeks' ? 4 : zoom === 'months' ? 3  : zoom === 'quarters' ? 2  : 1;
+    const periods = Math.ceil(max / periodDays) + bufferPeriods;
+    return Math.max(periods * periodDays, 3 * periodDays);
   }
 
   function hexAlpha(hex, a) {
@@ -4365,6 +4429,7 @@ const ExportController = (() => {
         ganttStartDate: parsed.meta?.ganttStartDate || new Date().toISOString().slice(0, 10),
         ganttZoom: parsed.meta?.ganttZoom || 'months',
         ganttPpdScale: parsed.meta?.ganttPpdScale || 1.0,
+        showConnections: parsed.meta?.showConnections !== false,
         logoDataUrl: parsed.meta?.logoDataUrl || null,
         theme: parsed.meta?.theme || 'light',
         customTheme: parsed.meta?.customTheme || { ...PRESET_THEMES.light },
@@ -4377,6 +4442,8 @@ const ExportController = (() => {
     };
     ThemeController.apply();
     GanttViewController.resetAutoPhase();
+    const connCb = document.getElementById('toggle-connections');
+    if (connCb) connCb.checked = AppState.meta.showConnections !== false;
     AppController.refreshAll();
     showToast('Project loaded.', 'success');
     AutoSave.schedule();
@@ -5167,6 +5234,17 @@ const AppController = (() => {
     const searchInput = document.getElementById('diagram-search');
     searchInput?.addEventListener('input', e => DiagramViewController.setSearch(e.target.value));
     searchInput?.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; DiagramViewController.setSearch(''); } });
+
+    // Connections toggle
+    const connCb = document.getElementById('toggle-connections');
+    if (connCb) {
+      connCb.checked = AppState.meta.showConnections !== false;
+      connCb.addEventListener('change', () => {
+        AppState.meta.showConnections = connCb.checked;
+        DiagramViewController.refresh();
+        touchState(); AutoSave.schedule();
+      });
+    }
 
     // Category filter bar toggle
     document.getElementById('btn-filter-cats')?.addEventListener('click', () => {
