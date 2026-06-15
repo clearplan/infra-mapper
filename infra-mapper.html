@@ -4452,7 +4452,7 @@ const GanttViewController = (() => {
     const rows = buildRows();
     if (autoFit) {
       const container = document.getElementById('gantt-container');
-      if (container) {
+      if (container && container.clientWidth > 0) {
         const availW = container.clientWidth - SIDEBAR_W;
         const td = totalDays();
         if (td > 0) {
