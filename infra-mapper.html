@@ -200,6 +200,10 @@
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
     @media print { #top-nav, #diagram-toolbar, #roadmap-toolbar, #future-state-banner, #category-filter-bar { display: none; } }
+    .dragging { opacity: 0.4 !important; }
+    .drag-over-top { border-top: 2px solid var(--accent) !important; background: rgba(59,130,246,.06) !important; }
+    .drag-over-swimlane { outline: 2px solid var(--accent) !important; }
+    #gantt-start-date { font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer; }
   </style>
 </head>
 <body>
@@ -289,12 +293,18 @@
         <input type="checkbox" id="toggle-milestones" checked> Milestones
       </label>
       <div style="flex:1"></div>
+      <label style="font-size:12px;display:flex;align-items:center;gap:5px;flex-shrink:0">
+        Start:
+        <input type="date" id="gantt-start-date">
+      </label>
+      <span class="toolbar-sep"></span>
       <label style="font-size:12px;display:flex;align-items:center;gap:5px">
         Zoom:
         <select id="gantt-zoom" style="font-size:12px;padding:3px 6px;width:auto">
           <option value="weeks">Weeks</option>
           <option value="months" selected>Months</option>
           <option value="quarters">Quarters</option>
+          <option value="years">Years</option>
         </select>
       </label>
     </div>
@@ -484,6 +494,61 @@
     <div class="modal-footer">
       <button id="confirm-no" class="btn-secondary">Cancel</button>
       <button id="confirm-yes" class="btn-primary">Confirm</button>
+    </div>
+  </div>
+
+  <!-- Add Connection (focused) -->
+  <div id="modal-add-connection" class="modal modal-sm hidden">
+    <div class="modal-header"><h2>Add Connection</h2><button class="modal-close">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="add-conn-node-id">
+      <div class="form-group">
+        <label>From</label>
+        <input type="text" id="add-conn-from-name" readonly style="background:var(--bg);color:var(--muted);cursor:default">
+      </div>
+      <div class="form-group">
+        <label>Direction</label>
+        <select id="add-conn-direction">
+          <option value="out">Out &#8594;</option>
+          <option value="in">&#8592; In</option>
+          <option value="both">&#8596; Both</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>To <span style="color:#ef4444">*</span></label>
+        <select id="add-conn-to"></select>
+      </div>
+      <div class="form-group">
+        <label>Label <span class="hint-text">(optional)</span></label>
+        <input type="text" id="add-conn-label" placeholder="e.g. API data feed">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-add-conn-cancel" class="btn-secondary">Cancel</button>
+      <button id="btn-add-conn-save" class="btn-primary">Add Connection</button>
+    </div>
+  </div>
+
+  <!-- Set Upgrade Target (focused) -->
+  <div id="modal-set-target" class="modal modal-sm hidden">
+    <div class="modal-header"><h2>Set Upgrade Target</h2><button class="modal-close">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="set-target-node-id">
+      <div class="form-group">
+        <label>Node</label>
+        <input type="text" id="set-target-node-name" readonly style="background:var(--bg);color:var(--muted);cursor:default">
+      </div>
+      <div class="form-group">
+        <label>Upgrade Target</label>
+        <div class="target-inline-row">
+          <select id="set-target-select"></select>
+          <button id="btn-set-target-create" class="btn-link">+ Create new</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-set-target-cancel" class="btn-secondary">Cancel</button>
+      <button id="btn-set-target-save" class="btn-primary">Save</button>
     </div>
   </div>
 
@@ -2580,7 +2645,8 @@ let AppState = {
     logoDataUrl: null,
     theme: 'light',
     customTheme: { ...PRESET_THEMES.light },
-    lastModified: new Date().toISOString()
+    lastModified: new Date().toISOString(),
+    ganttStartDate: new Date().toISOString().slice(0, 10)
   },
   categories: [],
   upgradeTargets: [],
@@ -2921,6 +2987,22 @@ const AutoPhasingEngine = (() => {
       t.gantt.startOffset = offsets.get(t.id) || 0;
       t.gantt.durationDays = UpgradeTargetManager.durationToDays(t.estimatedDuration.value, t.estimatedDuration.unit);
     }
+
+    // Sort categories by minimum target start offset
+    const catMin = new Map();
+    AppState.categories.forEach(cat => {
+      const ts = AppState.upgradeTargets.filter(t => t.category === cat);
+      catMin.set(cat, ts.length ? Math.min(...ts.map(t => t.gantt.startOffset || 0)) : Infinity);
+    });
+    AppState.categories.sort((a, b) => (catMin.get(a) || 0) - (catMin.get(b) || 0));
+
+    // Sort targets: first by category order, then by start offset within category
+    AppState.upgradeTargets.sort((a, b) => {
+      const catDiff = AppState.categories.indexOf(a.category) - AppState.categories.indexOf(b.category);
+      if (catDiff !== 0) return catDiff;
+      return (a.gantt.startOffset || 0) - (b.gantt.startOffset || 0);
+    });
+
     touchState(); AutoSave.schedule();
   }
   return { run };
@@ -2964,7 +3046,7 @@ const DiagramViewController = (() => {
                  : isUnchanged ? surf : surf;
 
     const p = [];
-    p.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">`);
+    p.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W*2}" height="${H*2}" viewBox="0 0 ${W} ${H}">`);
     p.push(`<rect width="${W}" height="${H}" rx="8" fill="${bgFill}" stroke="${bord}" stroke-width="1"/>`);
     p.push(`<rect x="0" y="8" width="${LB}" height="${H-16}" rx="2" fill="${categoryColor}"/>`);
 
@@ -3085,7 +3167,8 @@ const DiagramViewController = (() => {
           'line-color': edge,
           'target-arrow-color': edge,
           'source-arrow-color': edge,
-          'curve-style': 'bezier',
+          'curve-style': 'taxi',
+          'taxi-direction': 'auto',
           'label': 'data(label)',
           'font-size': 10,
           'color': text,
@@ -3093,7 +3176,7 @@ const DiagramViewController = (() => {
           'text-background-opacity': 0.85,
           'text-background-padding': '2px',
           'text-background-shape': 'round-rectangle',
-          'edge-text-rotation': 'autorotate',
+          'edge-text-rotation': 'none',
           'opacity': 0.85
         }
       },
@@ -3245,11 +3328,19 @@ const DiagramViewController = (() => {
       showContextMenu(rect.left + rp.x, rect.top + rp.y);
     });
 
-    // Drag end → save position
+    // Drag end → snap to alignment then save position
     cy.on('dragfreeon', 'node', e => {
       if (mode === 'future') return;
+      const SNAP = 14;
       const pos = e.target.position();
-      NodeManager.updatePosition(e.target.id(), pos.x, pos.y);
+      let sx = pos.x, sy = pos.y;
+      cy.nodes().not(e.target).forEach(n => {
+        const p2 = n.position();
+        if (Math.abs(p2.x - pos.x) < SNAP) sx = p2.x;
+        if (Math.abs(p2.y - pos.y) < SNAP) sy = p2.y;
+      });
+      if (sx !== pos.x || sy !== pos.y) e.target.position({ x: sx, y: sy });
+      NodeManager.updatePosition(e.target.id(), sx, sy);
       AutoSave.schedule();
     });
 
@@ -3296,8 +3387,8 @@ const DiagramViewController = (() => {
         if (!nid) return;
         if (action === 'edit')           ModalController.openNodeEditor(nid);
         if (action === 'delete')         deleteNode(nid);
-        if (action === 'add-connection') ModalController.openNodeEditor(nid);
-        if (action === 'set-target')     ModalController.openNodeEditor(nid);
+        if (action === 'add-connection') ModalController.openAddConnection(nid);
+        if (action === 'set-target')     ModalController.openSetTarget(nid);
       });
     });
     document.addEventListener('click', e => {
@@ -3487,12 +3578,27 @@ const GanttViewController = (() => {
   let bars         = []; // { targetId, x, y, w, h }
   let dragState    = null;
   let tooltipEl    = null;
+  let ppdScale     = 1.0; // x-axis zoom multiplier (Ctrl+wheel)
+  let dragSrc      = null; // { type:'swimlane'|'task', cat?, taskId?, taskCat? }
 
   // ── Helpers ────────────────────────────────────────────────────
   function ppd() {
-    if (zoom === 'weeks')    return 20;
-    if (zoom === 'quarters') return 2.5;
-    return 6;
+    const base = zoom === 'weeks' ? 20 : zoom === 'quarters' ? 2.5 : zoom === 'years' ? 0.7 : 6;
+    return base * ppdScale;
+  }
+
+  function ganttStartDate() {
+    return new Date((AppState.meta.ganttStartDate || new Date().toISOString().slice(0, 10)) + 'T00:00:00');
+  }
+
+  function offsetToDate(offset) {
+    const d = ganttStartDate();
+    d.setDate(d.getDate() + offset);
+    return d;
+  }
+
+  function fmtDate(d) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function totalDays() {
@@ -3574,13 +3680,45 @@ const GanttViewController = (() => {
 
       if (row.type === 'swimlane') {
         const cc = CategoryManager.getSwimlaneColor(row.category);
-        div.style.cssText += `background:${hexAlpha(cc,0.08)};border-left:3px solid ${cc};cursor:pointer;padding-left:5px;`;
-        div.innerHTML = `<span style="font-size:12px;font-weight:600;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(row.category)}</span>`
-          + `<span style="font-size:10px;color:${muted};margin-right:4px;flex-shrink:0">${collapsed.has(row.category)?'▶':'▼'}</span>`;
         const cat = row.category;
+        div.style.cssText += `background:${hexAlpha(cc,0.08)};border-left:3px solid ${cc};cursor:pointer;padding-left:5px;`;
+        div.innerHTML =
+          `<span style="font-size:12px;color:${muted};opacity:.45;cursor:grab;flex-shrink:0;margin-right:4px;line-height:1;user-select:none">⠿</span>` +
+          `<span style="font-size:12px;font-weight:600;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(cat)}</span>` +
+          `<span style="font-size:10px;color:${muted};margin-right:4px;flex-shrink:0">${collapsed.has(cat)?'▶':'▼'}</span>`;
         div.addEventListener('click', () => {
           if (collapsed.has(cat)) collapsed.delete(cat); else collapsed.add(cat);
           render();
+        });
+        div.draggable = true;
+        div.addEventListener('dragstart', e => {
+          dragSrc = { type: 'swimlane', cat };
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => div.classList.add('dragging'), 0);
+        });
+        div.addEventListener('dragend', () => {
+          dragSrc = null;
+          div.classList.remove('dragging');
+          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+        });
+        div.addEventListener('dragover', e => {
+          if (!dragSrc || dragSrc.type !== 'swimlane' || dragSrc.cat === cat) return;
+          e.preventDefault();
+          div.classList.add('drag-over-swimlane');
+        });
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over-swimlane'));
+        div.addEventListener('drop', e => {
+          e.preventDefault();
+          div.classList.remove('drag-over-swimlane');
+          if (!dragSrc || dragSrc.type !== 'swimlane' || dragSrc.cat === cat) return;
+          const from = AppState.categories.indexOf(dragSrc.cat);
+          const to   = AppState.categories.indexOf(cat);
+          if (from !== -1 && to !== -1) {
+            const [removed] = AppState.categories.splice(from, 1);
+            AppState.categories.splice(to, 0, removed);
+            StateHistory.push(); touchState(); AutoSave.schedule();
+          }
+          dragSrc = null; render();
         });
       } else {
         const t = row.target;
@@ -3588,9 +3726,44 @@ const GanttViewController = (() => {
         const accentColor = theme.accentColor || '#3b82f6';
         if (isSel) div.style.background = hexAlpha(accentColor, 0.1);
         div.style.cursor = 'pointer';
-        div.innerHTML = `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:12px;">${escapeHtml(t.name)}</span>`;
+        div.innerHTML =
+          `<span style="font-size:12px;color:${muted};opacity:.35;cursor:grab;flex-shrink:0;margin-right:2px;line-height:1;user-select:none">⠿</span>` +
+          `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:8px;">${escapeHtml(t.name)}</span>`;
         div.addEventListener('click',    () => selectTarget(t.id));
         div.addEventListener('dblclick', () => ModalController.openTargetEditor(t.id));
+        div.draggable = true;
+        div.addEventListener('dragstart', e => {
+          dragSrc = { type: 'task', taskId: t.id, taskCat: t.category };
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => div.classList.add('dragging'), 0);
+        });
+        div.addEventListener('dragend', () => {
+          dragSrc = null;
+          div.classList.remove('dragging');
+          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+        });
+        div.addEventListener('dragover', e => {
+          if (!dragSrc || dragSrc.type !== 'task' || dragSrc.taskId === t.id) return;
+          e.preventDefault();
+          div.classList.add('drag-over-top');
+        });
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top'));
+        div.addEventListener('drop', e => {
+          e.preventDefault();
+          div.classList.remove('drag-over-top');
+          if (!dragSrc || dragSrc.type !== 'task' || dragSrc.taskId === t.id) return;
+          const fromIdx = AppState.upgradeTargets.findIndex(u => u.id === dragSrc.taskId);
+          const toIdx   = AppState.upgradeTargets.findIndex(u => u.id === t.id);
+          if (fromIdx !== -1 && toIdx !== -1) {
+            if (AppState.upgradeTargets[fromIdx].category !== t.category)
+              AppState.upgradeTargets[fromIdx].category = t.category;
+            const [removed] = AppState.upgradeTargets.splice(fromIdx, 1);
+            const newTo = AppState.upgradeTargets.findIndex(u => u.id === t.id);
+            AppState.upgradeTargets.splice(newTo, 0, removed);
+            StateHistory.push(); touchState(); AutoSave.schedule();
+          }
+          dragSrc = null; render();
+        });
       }
       sidebar.appendChild(div);
     }
@@ -3626,36 +3799,46 @@ const GanttViewController = (() => {
 
     ctx.strokeStyle = theme.borderColor || '#e2e8f0';
     ctx.fillStyle   = theme.textColor   || '#1e293b';
-    ctx.font        = '11px system-ui,sans-serif';
     ctx.textBaseline = 'middle';
     ctx.lineWidth   = 1;
 
-    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const QTRS   = ['Q1','Q2','Q3','Q4'];
-
     if (zoom === 'weeks') {
+      ctx.font = '11px system-ui,sans-serif';
       const ww = p * 7;
       for (let w = 0; w * 7 < d; w++) {
         const x = w * ww;
         ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
-        ctx.fillText(`Wk ${w+1}`, x+4, H/2);
+        const date = offsetToDate(w * 7);
+        ctx.fillText(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), x+4, H/2);
       }
     } else if (zoom === 'months') {
-      let day = 0, m = 0;
+      ctx.font = '11px system-ui,sans-serif';
+      let day = 0;
       while (day < d) {
         const x = day * p;
         ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
-        ctx.fillText(MONTHS[m%12], x+4, H/2);
-        day += 30; m++;
+        const date = offsetToDate(day);
+        ctx.fillText(date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), x+4, H/2);
+        day += 30;
       }
-    } else {
-      let day = 0, q = 0;
+    } else if (zoom === 'quarters') {
       ctx.font = 'bold 12px system-ui,sans-serif';
+      let day = 0;
       while (day < d) {
         const x = day * p;
         ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
-        ctx.fillText(QTRS[q%4], x+6, H/2);
-        day += 91; q++;
+        const date = offsetToDate(day);
+        ctx.fillText(date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), x+6, H/2);
+        day += 91;
+      }
+    } else { // years
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      let day = 0;
+      while (day < d) {
+        const x = day * p;
+        ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
+        ctx.fillText(offsetToDate(day).getFullYear().toString(), x+6, H/2);
+        day += 365;
       }
     }
     // Bottom border
@@ -3726,12 +3909,25 @@ const GanttViewController = (() => {
     ctx.strokeStyle = theme.borderColor || '#e2e8f0';
     ctx.lineWidth = 1;
     const p2 = ppd();
-    const col = zoom==='weeks' ? 7 : zoom==='months' ? 30 : 91;
+    const col = zoom==='weeks' ? 7 : zoom==='months' ? 30 : zoom==='years' ? 365 : 91;
     for (let day2 = col; day2 < d; day2 += col) {
       const gx = day2 * p2;
       ctx.beginPath(); ctx.moveTo(gx+.5, 0); ctx.lineTo(gx+.5, H); ctx.stroke();
     }
     ctx.globalAlpha = 1;
+
+    // Today marker
+    const todayOffset = Math.floor((new Date() - ganttStartDate()) / 86400000);
+    if (todayOffset >= 0 && todayOffset <= d) {
+      const tx = todayOffset * p2;
+      ctx.save();
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.moveTo(tx+.5, 0); ctx.lineTo(tx+.5, H); ctx.stroke();
+      ctx.restore();
+    }
 
     if (showDepLines) drawDepLines(ctx, theme);
     if (showMilestones) drawMilestones(ctx, rows, theme, p);
@@ -3912,11 +4108,14 @@ const GanttViewController = (() => {
 
     tooltipEl = document.createElement('div');
     tooltipEl.style.cssText = 'position:fixed;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;box-shadow:var(--shadow-md);min-width:190px;max-width:260px;pointer-events:none;line-height:1.6;';
+    const barStartDate = offsetToDate(target.gantt.startOffset);
+    const barEndDate   = offsetToDate(target.gantt.startOffset + target.gantt.durationDays);
     tooltipEl.innerHTML =
       `<div style="font-weight:600;font-size:13px;margin-bottom:5px">${escapeHtml(target.name)}</div>` +
       `<div style="color:var(--muted)">Category: ${escapeHtml(target.category)}</div>` +
+      `<div style="color:var(--muted)">Start: ${fmtDate(barStartDate)}</div>` +
+      `<div style="color:var(--muted)">End: ${fmtDate(barEndDate)}</div>` +
       `<div style="color:var(--muted)">Duration: ${target.gantt.durationDays} days</div>` +
-      `<div style="color:var(--muted)">Start offset: Day ${target.gantt.startOffset}</div>` +
       (nodes.length ? `<div style="color:var(--muted);margin-top:4px">Systems: ${nodes.map(n=>escapeHtml(n.name)).join(', ')}</div>` : '') +
       `<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.7">Double-click to edit</div>`;
     document.body.appendChild(tooltipEl);
@@ -3956,11 +4155,32 @@ const GanttViewController = (() => {
       milCb._gwired = true;
       milCb.addEventListener('change', () => { showMilestones = milCb.checked; reDrawMain(); });
     }
+    const datePicker = document.getElementById('gantt-start-date');
+    if (datePicker && !datePicker._gwired) {
+      datePicker._gwired = true;
+      datePicker.addEventListener('change', () => {
+        AppState.meta.ganttStartDate = datePicker.value;
+        touchState(); AutoSave.schedule(); render();
+      });
+    }
+    const container = document.getElementById('gantt-container');
+    if (container && !container._zoomWired) {
+      container._zoomWired = true;
+      container.addEventListener('wheel', e => {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        ppdScale = Math.max(0.15, Math.min(6, ppdScale * (e.deltaY > 0 ? 0.88 : 1.14)));
+        render();
+      }, { passive: false });
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────
   function render() {
     hideTooltip();
+    // Sync start date picker
+    const dp = document.getElementById('gantt-start-date');
+    if (dp) dp.value = AppState.meta.ganttStartDate || new Date().toISOString().slice(0, 10);
     const body = document.getElementById('gantt-body');
     if (!body) return;
     if (!AppState.upgradeTargets.length) {
@@ -3994,14 +4214,30 @@ const GanttViewController = (() => {
 // 11. EXPORT CONTROLLER
 // ================================================================
 const ExportController = (() => {
-  function saveJSON() {
+  async function saveJSON() {
     touchState();
-    const blob = new Blob([JSON.stringify(AppState, null, 2)], { type: 'application/json' });
+    const content = JSON.stringify(AppState, null, 2);
+    const defaultName = (AppState.meta.diagramTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'project') + '.infra.json';
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: defaultName,
+          types: [{ description: 'InfraMapper Project', accept: { 'application/json': ['.json'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        showToast('Project saved.', 'success');
+        return;
+      } catch(err) {
+        if (err.name === 'AbortError') return;
+        // Fall through to legacy download
+      }
+    }
+    const blob = new Blob([content], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = (AppState.meta.diagramTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'project') + '.infra.json';
-    a.click();
+    a.href = url; a.download = defaultName; a.click();
     URL.revokeObjectURL(url);
     showToast('Project saved.', 'success');
   }
@@ -4026,6 +4262,7 @@ const ExportController = (() => {
       meta: {
         diagramTitle: parsed.meta?.diagramTitle || 'Infrastructure Map',
         roadmapTitle: parsed.meta?.roadmapTitle || 'Digital Transformation Roadmap',
+        ganttStartDate: parsed.meta?.ganttStartDate || new Date().toISOString().slice(0, 10),
         logoDataUrl: parsed.meta?.logoDataUrl || null,
         theme: parsed.meta?.theme || 'light',
         customTheme: parsed.meta?.customTheme || { ...PRESET_THEMES.light },
@@ -4136,7 +4373,7 @@ const ModalController = (() => {
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
     modal.classList.remove('hidden');
     active = id;
-    overlay.onclick = e => { if (e.target === overlay) close(); };
+    overlay.onclick = null; // Must use Cancel/Save/× to dismiss
     const first = modal.querySelector('input:not([type="hidden"]), select, textarea, button:not(.modal-close)');
     if (first) setTimeout(() => first.focus(), 50);
   }
@@ -4412,7 +4649,7 @@ const ModalController = (() => {
       const opts = others.map(n => `<option value="${n.id}" ${conn.otherNodeId === n.id ? 'selected' : ''}>${escapeHtml(n.name)} (${escapeHtml(n.category)})</option>`).join('');
       row.innerHTML = `
         <select class="conn-dir" data-idx="${idx}">
-          <option value="out"  ${conn.direction==='out'  ?'selected':''}>→ Out</option>
+          <option value="out"  ${conn.direction==='out'  ?'selected':''}>Out →</option>
           <option value="in"   ${conn.direction==='in'   ?'selected':''}>← In</option>
           <option value="both" ${conn.direction==='both' ?'selected':''}>↔ Both</option>
         </select>
@@ -4504,14 +4741,96 @@ const ModalController = (() => {
     nodeEditorConns.forEach(conn => {
       if (!conn.otherNodeId) return;
       const dir = conn.flipped ? (conn.direction === 'out' ? 'in' : conn.direction === 'in' ? 'out' : 'both') : conn.direction;
-      if (conn.isNew) EdgeManager.add({ sourceNodeId: savedNodeId, targetNodeId: conn.otherNodeId, direction: dir, label: conn.label });
-      else if (conn.id) EdgeManager.update(conn.id, { direction: dir, label: conn.label });
+      if (conn.isNew) {
+        const src = conn.flipped ? conn.otherNodeId : savedNodeId;
+        const tgt = conn.flipped ? savedNodeId : conn.otherNodeId;
+        EdgeManager.add({ sourceNodeId: src, targetNodeId: tgt, direction: dir, label: conn.label });
+      } else if (conn.id) {
+        const existing = EdgeManager.getById(conn.id);
+        if (existing) {
+          const actualOther = existing.sourceNodeId === savedNodeId ? existing.targetNodeId : existing.sourceNodeId;
+          if (actualOther !== conn.otherNodeId) {
+            // Target node changed — remove old, create new
+            EdgeManager.remove(conn.id);
+            const src = conn.flipped ? conn.otherNodeId : savedNodeId;
+            const tgt = conn.flipped ? savedNodeId : conn.otherNodeId;
+            EdgeManager.add({ sourceNodeId: src, targetNodeId: tgt, direction: dir, label: conn.label });
+          } else {
+            EdgeManager.update(conn.id, { direction: dir, label: conn.label });
+          }
+        }
+      }
     });
 
     DiagramViewController.refresh();
     GanttViewController.refresh();
     close();
     showToast(nodeId ? 'Node updated.' : 'Node added.', 'success');
+  }
+
+  // ── Add Connection (focused) ─────────────────────────────
+  function openAddConnection(nodeId) {
+    const node = NodeManager.getById(nodeId);
+    if (!node) return;
+    document.getElementById('add-conn-node-id').value = nodeId;
+    document.getElementById('add-conn-from-name').value = node.name;
+    const toSel = document.getElementById('add-conn-to');
+    toSel.innerHTML = '<option value="">-- Select node --</option>';
+    AppState.nodes.filter(n => n.id !== nodeId).forEach(n => {
+      const opt = document.createElement('option');
+      opt.value = n.id; opt.textContent = `${n.name} (${n.category})`; toSel.appendChild(opt);
+    });
+    document.getElementById('add-conn-label').value = '';
+    document.getElementById('add-conn-direction').value = 'out';
+    open('modal-add-connection');
+  }
+
+  function bindAddConnectionEvents() {
+    document.getElementById('btn-add-conn-save')?.addEventListener('click', () => {
+      const nodeId = document.getElementById('add-conn-node-id').value;
+      const toId   = document.getElementById('add-conn-to').value;
+      if (!toId) { showToast('Please select a target node.', 'error'); return; }
+      const direction = document.getElementById('add-conn-direction').value;
+      const label     = document.getElementById('add-conn-label').value.trim();
+      EdgeManager.add({ sourceNodeId: nodeId, targetNodeId: toId, direction, label });
+      DiagramViewController.refresh();
+      close();
+      showToast('Connection added.', 'success');
+    });
+    document.getElementById('btn-add-conn-cancel')?.addEventListener('click', close);
+  }
+
+  // ── Set Upgrade Target (focused) ─────────────────────────
+  function openSetTarget(nodeId) {
+    const node = NodeManager.getById(nodeId);
+    if (!node) return;
+    document.getElementById('set-target-node-id').value = nodeId;
+    document.getElementById('set-target-node-name').value = node.name;
+    populateTargetDropdown('set-target-select', node.upgradeTargetId || '');
+    open('modal-set-target');
+  }
+
+  function bindSetTargetEvents() {
+    document.getElementById('btn-set-target-save')?.addEventListener('click', () => {
+      const nodeId   = document.getElementById('set-target-node-id').value;
+      const targetId = document.getElementById('set-target-select').value || null;
+      const idx = AppState.nodes.findIndex(n => n.id === nodeId);
+      if (idx === -1) return;
+      StateHistory.push();
+      AppState.nodes[idx].upgradeTargetId = targetId;
+      touchState(); AutoSave.schedule();
+      DiagramViewController.refresh();
+      GanttViewController.refresh();
+      close();
+      showToast('Upgrade target updated.', 'success');
+    });
+    document.getElementById('btn-set-target-cancel')?.addEventListener('click', close);
+    document.getElementById('btn-set-target-create')?.addEventListener('click', () => {
+      openTargetEditor(null, newTarget => {
+        populateTargetDropdown('set-target-select', newTarget.id);
+        open('modal-set-target');
+      });
+    });
   }
 
   // ── Helpers ──────────────────────────────────────────────
@@ -4551,10 +4870,12 @@ const ModalController = (() => {
     bindTargetListEvents();
     bindTargetEditorEvents();
     bindNodeEditorEvents();
+    bindAddConnectionEvents();
+    bindSetTargetEvents();
     document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', close));
   }
 
-  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openNodeEditor, init };
+  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openNodeEditor, openAddConnection, openSetTarget, init };
 })();
 
 // ================================================================
