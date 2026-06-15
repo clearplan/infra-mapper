@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>InfraMapper</title>
   <style>
-    /* ── CSS Custom Properties ─────────────────────────────── */
     :root {
       --bg:          #f8fafc;
       --surface:     #ffffff;
@@ -25,38 +24,21 @@
       --shadow-lg:   0 10px 15px rgba(0,0,0,.10), 0 4px 6px rgba(0,0,0,.05);
       --transition:  150ms ease;
     }
-
-    /* ── Reset ─────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 14px; }
     body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
-
-    /* ── Utility ────────────────────────────────────────────── */
     .hidden { display: none !important; }
     .muted-text { color: var(--muted); font-size: 13px; }
-    .danger { color: #ef4444 !important; }
     .btn-icon { background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 4px 6px; border-radius: var(--radius-sm); color: var(--muted); transition: background var(--transition), color var(--transition); }
     .btn-icon:hover { background: var(--border); color: var(--text); }
-    .btn-icon.danger:hover { background: #fee2e2; color: #ef4444; }
     .btn-sm { font-size: 12px; padding: 3px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: background var(--transition); }
     .btn-sm:hover { background: var(--border); }
     .btn-sm.danger { border-color: #fca5a5; color: #ef4444; }
     .btn-sm.danger:hover { background: #fee2e2; }
 
-    /* ── Top Navigation Bar ─────────────────────────────────── */
-    #top-nav {
-      height: var(--nav-h);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      padding: 0 16px;
-      gap: 12px;
-      flex-shrink: 0;
-      box-shadow: var(--shadow);
-      z-index: 100;
-    }
-    .nav-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 160px; }
+    /* Nav */
+    #top-nav { height: var(--nav-h); background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; box-shadow: var(--shadow); z-index: 100; }
+    .nav-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; min-width: 140px; }
     .nav-logo-img { height: 32px; width: auto; max-width: 120px; object-fit: contain; display: none; border-radius: var(--radius-sm); }
     .nav-logo-text { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: -.3px; }
     .view-switcher { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; flex-shrink: 0; }
@@ -74,32 +56,62 @@
     .export-item { display: block; width: 100%; padding: 9px 14px; text-align: left; border: none; background: none; cursor: pointer; font-size: 13px; color: var(--text); transition: background var(--transition); }
     .export-item:hover { background: var(--bg); }
 
-    /* ── View containers ────────────────────────────────────── */
-    #views-container { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+    /* Views */
+    #views-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
     .view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 
-    /* ── Diagram View ────────────────────────────────────────── */
-    #diagram-toolbar { height: var(--toolbar-h); display: flex; align-items: center; gap: 6px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    .toolbar-sep { width: 1px; height: 24px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
-    .btn-toolbar { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 500; white-space: nowrap; transition: background var(--transition); }
+    /* Diagram toolbar */
+    #diagram-toolbar { height: var(--toolbar-h); display: flex; align-items: center; gap: 4px; padding: 0 10px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; overflow-x: auto; }
+    #diagram-toolbar::-webkit-scrollbar { height: 0; }
+    .toolbar-sep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; flex-shrink: 0; }
+    .btn-toolbar { display: flex; align-items: center; gap: 4px; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 500; white-space: nowrap; transition: background var(--transition); flex-shrink: 0; }
     .btn-toolbar:hover { background: var(--bg); }
+    .btn-toolbar.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     .btn-toolbar:disabled { opacity: .4; cursor: not-allowed; }
-    #diagram-search { padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 12px; width: 160px; outline: none; }
+    .btn-toolbar-icon { padding: 5px 7px; font-size: 14px; }
+    #diagram-search { padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); font-size: 12px; width: 140px; outline: none; flex-shrink: 0; }
     #diagram-search:focus { border-color: var(--accent); }
-    #cy { flex: 1; background: var(--bg); position: relative; }
 
-    /* ── Roadmap View ─────────────────────────────────────────── */
+    /* Future state banner */
+    #future-state-banner { display: none; background: #eff6ff; border-bottom: 1px solid #bfdbfe; padding: 8px 14px; font-size: 12px; color: #1d4ed8; align-items: center; gap: 10px; flex-shrink: 0; }
+    #future-state-banner.visible { display: flex; }
+    #future-state-banner .legend { display: flex; gap: 14px; margin-left: auto; }
+    #future-state-banner .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+    #future-state-banner .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+    [data-theme="dark"] #future-state-banner { background: #0c1b3b; border-color: #1e3a8a; color: #93c5fd; }
+
+    /* Category filters */
+    #category-filter-bar { display: none; padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--border); gap: 6px; flex-wrap: wrap; align-items: center; flex-shrink: 0; }
+    #category-filter-bar.visible { display: flex; }
+    .cat-chip { padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 11px; cursor: pointer; transition: all var(--transition); }
+    .cat-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .cat-chip-all { font-weight: 600; }
+
+    /* Cytoscape container */
+    #cy-wrap { flex: 1; position: relative; overflow: hidden; }
+    #cy { position: absolute; inset: 0; background: var(--bg); }
+    #cy-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); pointer-events: none; background: var(--bg); }
+    #cy-empty.hidden { display: none; }
+
+    /* Roadmap */
     #roadmap-toolbar { height: var(--toolbar-h); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0; }
-    #gantt-container { flex: 1; overflow: auto; background: var(--bg); position: relative; }
+    #gantt-container { flex: 1; overflow: auto; background: var(--bg); }
     #gantt-body { min-height: 100%; }
 
-    /* ── Placeholder ─────────────────────────────────────────── */
+    /* Placeholder */
     .canvas-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 10px; color: var(--muted); min-height: 300px; }
-    .placeholder-icon { font-size: 48px; opacity: .3; }
-    .canvas-placeholder p { font-size: 15px; font-weight: 600; color: var(--muted); }
-    .placeholder-sub { font-size: 13px !important; font-weight: 400 !important; }
+    .placeholder-icon { font-size: 48px; opacity: .25; }
+    .canvas-placeholder p { font-size: 15px; font-weight: 600; }
+    .canvas-placeholder .placeholder-sub { font-size: 13px; font-weight: 400; }
 
-    /* ── Modal Overlay ─────────────────────────────────────────── */
+    /* Context menu */
+    #cy-context-menu { position: fixed; z-index: 900; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); min-width: 160px; overflow: hidden; }
+    .ctx-item { display: block; width: 100%; padding: 8px 14px; text-align: left; border: none; background: none; cursor: pointer; font-size: 13px; color: var(--text); transition: background var(--transition); }
+    .ctx-item:hover { background: var(--bg); }
+    .ctx-item.danger { color: #ef4444; }
+    .ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+    /* Modal */
     #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 20px; }
     .modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-lg); width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
     .modal.modal-sm { max-width: 420px; }
@@ -117,7 +129,7 @@
     .btn-danger { padding: 7px 18px; background: #ef4444; color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; }
     .btn-danger:hover { opacity: .9; }
 
-    /* ── Form elements ─────────────────────────────────────────── */
+    /* Forms */
     .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
     .form-group label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -125,7 +137,7 @@
     input:focus, select:focus, textarea:focus { border-color: var(--accent); }
     .hint-text { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-    /* ── Settings Modal ──────────────────────────────────────── */
+    /* Settings */
     .theme-options { display: flex; gap: 8px; flex-wrap: wrap; }
     .theme-option { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border: 2px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; transition: border-color var(--transition); }
     .theme-option.selected { border-color: var(--accent); }
@@ -142,24 +154,23 @@
     .swatch-label { font-size: 13px; }
     input.color-swatch { width: 48px; height: 28px; padding: 1px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: var(--bg); }
 
-    /* ── Category Modal ─────────────────────────────────────────── */
+    /* Categories */
     .category-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--border); }
     .cat-name-input { flex: 1; }
     #new-category-row { display: flex; gap: 8px; margin-top: 12px; }
     #new-category-input { flex: 1; }
 
-    /* ── Target List Modal ──────────────────────────────────────── */
+    /* Targets table */
     .targets-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .targets-table th { text-align: left; padding: 7px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); border-bottom: 2px solid var(--border); }
     .targets-table td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     .targets-table tr:hover td { background: var(--bg); }
     .targets-table td:last-child { white-space: nowrap; }
 
-    /* ── Node Editor ─────────────────────────────────────────────── */
+    /* Node editor */
     .connections-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .connections-header span { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
     .connection-row { display: grid; grid-template-columns: 90px 1fr 1fr 32px; gap: 6px; margin-bottom: 6px; align-items: center; }
-    .connection-row select, .connection-row input { margin: 0; }
     .node-icon-row { display: flex; align-items: center; gap: 10px; }
     #node-icon-preview { height: 48px; width: 48px; object-fit: contain; border: 1px solid var(--border); border-radius: var(--radius-sm); }
     .icon-actions { display: flex; flex-direction: column; gap: 5px; }
@@ -171,7 +182,7 @@
     .duration-row select { flex: 1; }
     .duration-hint { font-size: 11px; color: var(--muted); white-space: nowrap; }
 
-    /* ── Toast notifications ─────────────────────────────────────── */
+    /* Toasts */
     #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
     .toast { padding: 10px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow-md); opacity: 0; transform: translateY(8px); transition: opacity .2s, transform .2s; max-width: 320px; }
     .toast-visible { opacity: 1; transform: translateY(0); }
@@ -183,24 +194,16 @@
     [data-theme="dark"] .toast-warning { background: #1c1003; color: #fcd34d; }
     [data-theme="dark"] .toast-error   { background: #1c0606; color: #fca5a5; }
 
-    /* ── Confirm dialog ───────────────────────────────────────────── */
     #confirm-message { margin-bottom: 8px; font-size: 14px; line-height: 1.5; }
-
-    /* ── Scrollbar ─────────────────────────────────────────────────── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-    /* ── Print ─────────────────────────────────────────────────────── */
-    @media print {
-      #top-nav, #diagram-toolbar, #roadmap-toolbar { display: none; }
-    }
+    @media print { #top-nav, #diagram-toolbar, #roadmap-toolbar, #future-state-banner, #category-filter-bar { display: none; } }
   </style>
 </head>
 <body>
 
-<!-- ── Top Navigation Bar ──────────────────────────────────────── -->
 <nav id="top-nav">
   <div class="nav-brand">
     <img class="nav-logo-img" id="nav-logo-img" alt="Logo">
@@ -228,7 +231,6 @@
   </div>
 </nav>
 
-<!-- ── Views Container ─────────────────────────────────────────── -->
 <div id="views-container">
 
   <!-- Diagram View -->
@@ -236,13 +238,43 @@
     <div id="diagram-toolbar">
       <button id="btn-add-node" class="btn-toolbar">+ Add Node</button>
       <span class="toolbar-sep"></span>
-      <button id="btn-manage-targets" class="btn-toolbar">Targets</button>
+      <button id="btn-auto-layout" class="btn-toolbar">&#11835; Auto Layout</button>
+      <button id="btn-toggle-state" class="btn-toolbar" data-state="current">Current State</button>
+      <span class="toolbar-sep"></span>
+      <button id="btn-zoom-in"  class="btn-toolbar btn-toolbar-icon" title="Zoom In">+</button>
+      <button id="btn-zoom-out" class="btn-toolbar btn-toolbar-icon" title="Zoom Out">&#8722;</button>
+      <button id="btn-fit"      class="btn-toolbar btn-toolbar-icon" title="Fit to Screen (Ctrl+F)">&#9635;</button>
+      <span class="toolbar-sep"></span>
+      <button id="btn-manage-targets"    class="btn-toolbar">Targets</button>
       <button id="btn-manage-categories" class="btn-toolbar">Categories</button>
       <span class="toolbar-sep"></span>
-      <input id="diagram-search" type="text" placeholder="Search nodes...">
-      <div style="flex:1"></div>
+      <input id="diagram-search" type="text" placeholder="Search...">
+      <button id="btn-filter-cats" class="btn-toolbar btn-toolbar-icon" title="Filter by category">&#9776;</button>
+      <button id="btn-export-diagram-img" class="btn-toolbar btn-toolbar-icon" title="Export diagram PNG">&#128247;</button>
     </div>
-    <div id="cy"></div>
+    <div id="future-state-banner">
+      <strong>Future State (read-only)</strong>
+      <span style="color:inherit;opacity:.7">Showing projected architecture after all upgrades.</span>
+      <button id="btn-back-to-current" class="btn-sm" style="margin-left:8px">&#8592; Back to Current</button>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#0ea5e9"></span> Upgraded</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span> Unchanged</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#7c3aed"></span> Consolidated</span>
+      </div>
+    </div>
+    <div id="category-filter-bar">
+      <span style="font-size:11px;color:var(--muted);flex-shrink:0">Filter:</span>
+      <div id="cat-chip-all" class="cat-chip cat-chip-all active">All</div>
+      <div id="cat-chips"></div>
+    </div>
+    <div id="cy-wrap">
+      <div id="cy"></div>
+      <div id="cy-empty">
+        <div class="placeholder-icon">&#9651;</div>
+        <p style="font-size:15px;font-weight:600">Network Diagram</p>
+        <p style="font-size:13px">Add nodes to begin mapping your infrastructure.</p>
+      </div>
+    </div>
   </div>
 
   <!-- Roadmap View -->
@@ -273,15 +305,21 @@
 
 </div>
 
-<!-- ── Modal Overlay ──────────────────────────────────────────── -->
+<!-- Context Menu -->
+<div id="cy-context-menu" class="hidden">
+  <button class="ctx-item" data-action="edit">Edit Node</button>
+  <button class="ctx-item" data-action="add-connection">Add Connection</button>
+  <button class="ctx-item" data-action="set-target">Set Upgrade Target</button>
+  <div class="ctx-sep"></div>
+  <button class="ctx-item danger" data-action="delete">Delete Node</button>
+</div>
+
+<!-- Modal Overlay -->
 <div id="modal-overlay" class="hidden">
 
   <!-- Settings -->
   <div id="modal-settings" class="modal hidden">
-    <div class="modal-header">
-      <h2>Settings</h2>
-      <button class="modal-close">&times;</button>
-    </div>
+    <div class="modal-header"><h2>Settings</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body">
       <div class="form-group">
         <label>Diagram Title</label>
@@ -308,18 +346,10 @@
       <div class="form-group">
         <label>Theme</label>
         <div class="theme-options" id="theme-options">
-          <div class="theme-option selected" data-theme="light">
-            <span class="theme-dot" style="background:#f8fafc;border-color:#e2e8f0"></span> Light
-          </div>
-          <div class="theme-option" data-theme="dark">
-            <span class="theme-dot" style="background:#0f172a"></span> Dark
-          </div>
-          <div class="theme-option" data-theme="highContrast">
-            <span class="theme-dot" style="background:#000;border-color:#fff"></span> High Contrast
-          </div>
-          <div class="theme-option" data-theme="custom">
-            <span class="theme-dot" style="background:linear-gradient(135deg,#3b82f6,#10b981)"></span> Custom
-          </div>
+          <div class="theme-option selected" data-theme="light"><span class="theme-dot" style="background:#f8fafc;border-color:#e2e8f0"></span> Light</div>
+          <div class="theme-option" data-theme="dark"><span class="theme-dot" style="background:#0f172a"></span> Dark</div>
+          <div class="theme-option" data-theme="highContrast"><span class="theme-dot" style="background:#000;border-color:#fff"></span> High Contrast</div>
+          <div class="theme-option" data-theme="custom"><span class="theme-dot" style="background:linear-gradient(135deg,#3b82f6,#10b981)"></span> Custom</div>
         </div>
         <input type="hidden" id="settings-theme" value="light">
       </div>
@@ -350,10 +380,7 @@
 
   <!-- Manage Categories -->
   <div id="modal-categories" class="modal modal-sm hidden">
-    <div class="modal-header">
-      <h2>Manage Categories</h2>
-      <button class="modal-close">&times;</button>
-    </div>
+    <div class="modal-header"><h2>Manage Categories</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body">
       <div id="categories-list"></div>
       <div id="new-category-row">
@@ -361,24 +388,15 @@
         <button id="btn-add-category" class="btn-primary">Add</button>
       </div>
     </div>
-    <div class="modal-footer">
-      <button id="btn-categories-close" class="btn-secondary">Close</button>
-    </div>
+    <div class="modal-footer"><button id="btn-categories-close" class="btn-secondary">Close</button></div>
   </div>
 
   <!-- Manage Targets -->
   <div id="modal-targets" class="modal modal-lg hidden">
-    <div class="modal-header">
-      <h2>Upgrade Targets</h2>
-      <button class="modal-close">&times;</button>
-    </div>
+    <div class="modal-header"><h2>Upgrade Targets</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body" style="padding:0">
       <table class="targets-table">
-        <thead>
-          <tr>
-            <th>Name</th><th>Category</th><th>Duration</th><th>Nodes</th><th>Actions</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Name</th><th>Category</th><th>Duration</th><th>Nodes</th><th>Actions</th></tr></thead>
         <tbody id="targets-tbody"></tbody>
       </table>
     </div>
@@ -390,20 +408,11 @@
 
   <!-- Target Editor -->
   <div id="modal-target-editor" class="modal modal-sm hidden">
-    <div class="modal-header">
-      <h2 id="target-editor-title">Add Upgrade Target</h2>
-      <button class="modal-close">&times;</button>
-    </div>
+    <div class="modal-header"><h2 id="target-editor-title">Add Upgrade Target</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="target-id-hidden">
-      <div class="form-group">
-        <label>Name <span style="color:#ef4444">*</span></label>
-        <input type="text" id="target-name" placeholder="e.g. Oracle Cloud ERP">
-      </div>
-      <div class="form-group">
-        <label>Category / Swimlane <span style="color:#ef4444">*</span></label>
-        <select id="target-category"></select>
-      </div>
+      <div class="form-group"><label>Name <span style="color:#ef4444">*</span></label><input type="text" id="target-name" placeholder="e.g. Oracle Cloud ERP"></div>
+      <div class="form-group"><label>Category / Swimlane <span style="color:#ef4444">*</span></label><select id="target-category"></select></div>
       <div class="form-group">
         <label>Estimated Timeline <span style="color:#ef4444">*</span></label>
         <div class="duration-row">
@@ -425,21 +434,12 @@
 
   <!-- Node Editor -->
   <div id="modal-node-editor" class="modal modal-lg hidden">
-    <div class="modal-header">
-      <h2 id="node-editor-title">Add Node</h2>
-      <button class="modal-close">&times;</button>
-    </div>
+    <div class="modal-header"><h2 id="node-editor-title">Add Node</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body">
       <input type="hidden" id="node-id-hidden">
       <div class="form-row">
-        <div class="form-group">
-          <label>Name <span style="color:#ef4444">*</span></label>
-          <input type="text" id="node-name" placeholder="e.g. CMiC Work Orders">
-        </div>
-        <div class="form-group">
-          <label>Category / Swimlane <span style="color:#ef4444">*</span></label>
-          <select id="node-category"></select>
-        </div>
+        <div class="form-group"><label>Name <span style="color:#ef4444">*</span></label><input type="text" id="node-name" placeholder="e.g. CMiC Work Orders"></div>
+        <div class="form-group"><label>Category / Swimlane <span style="color:#ef4444">*</span></label><select id="node-category"></select></div>
       </div>
       <div class="form-group">
         <label>Upgrade Target</label>
@@ -477,24 +477,18 @@
     </div>
   </div>
 
-  <!-- Confirm Dialog -->
+  <!-- Confirm -->
   <div id="modal-confirm" class="modal modal-sm hidden">
-    <div class="modal-header">
-      <h2>Confirm</h2>
-      <button class="modal-close">&times;</button>
-    </div>
-    <div class="modal-body">
-      <p id="confirm-message"></p>
-    </div>
+    <div class="modal-header"><h2>Confirm</h2><button class="modal-close">&times;</button></div>
+    <div class="modal-body"><p id="confirm-message"></p></div>
     <div class="modal-footer">
       <button id="confirm-no" class="btn-secondary">Cancel</button>
       <button id="confirm-yes" class="btn-primary">Confirm</button>
     </div>
   </div>
 
-</div><!-- /modal-overlay -->
+</div>
 
-<!-- ── Toast Container ─────────────────────────────────────────── -->
 <div id="toast-container"></div>
 
 <script>
@@ -2507,7 +2501,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
 </script>
 
-
 <script>
 // ================================================================
 // UTILITIES
@@ -2524,8 +2517,10 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-function deepClone(obj) {
-  return JSON.parse(JSON.stringify(obj));
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+function getCSSVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
@@ -2537,8 +2532,16 @@ function showToast(msg, type = 'info', duration = 3500) {
   requestAnimationFrame(() => el.classList.add('toast-visible'));
   setTimeout(() => {
     el.classList.remove('toast-visible');
-    el.addEventListener('transitionend', () => el.remove());
+    el.addEventListener('transitionend', () => el.remove(), { once: true });
   }, duration);
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function escapeXml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
 
 // ================================================================
@@ -2551,39 +2554,21 @@ const DEFAULT_PALETTE = [
 
 const PRESET_THEMES = {
   light: {
-    background: '#f8fafc',
-    surface: '#ffffff',
-    nodeDefaultColor: '#ffffff',
-    edgeColor: '#94a3b8',
-    textColor: '#1e293b',
-    mutedColor: '#64748b',
-    accentColor: '#3b82f6',
-    borderColor: '#e2e8f0',
-    upgradeHighlight: '#fef9c3',
+    background: '#f8fafc', surface: '#ffffff', nodeDefaultColor: '#ffffff',
+    edgeColor: '#94a3b8', textColor: '#1e293b', mutedColor: '#64748b',
+    accentColor: '#3b82f6', borderColor: '#e2e8f0', upgradeHighlight: '#fef9c3',
     swimlaneColors: {}
   },
   dark: {
-    background: '#0f172a',
-    surface: '#1e293b',
-    nodeDefaultColor: '#1e293b',
-    edgeColor: '#475569',
-    textColor: '#f1f5f9',
-    mutedColor: '#94a3b8',
-    accentColor: '#60a5fa',
-    borderColor: '#334155',
-    upgradeHighlight: '#422006',
+    background: '#0f172a', surface: '#1e293b', nodeDefaultColor: '#1e293b',
+    edgeColor: '#475569', textColor: '#f1f5f9', mutedColor: '#94a3b8',
+    accentColor: '#60a5fa', borderColor: '#334155', upgradeHighlight: '#422006',
     swimlaneColors: {}
   },
   highContrast: {
-    background: '#000000',
-    surface: '#111111',
-    nodeDefaultColor: '#111111',
-    edgeColor: '#ffffff',
-    textColor: '#ffffff',
-    mutedColor: '#cccccc',
-    accentColor: '#ffff00',
-    borderColor: '#ffffff',
-    upgradeHighlight: '#003300',
+    background: '#000000', surface: '#111111', nodeDefaultColor: '#111111',
+    edgeColor: '#ffffff', textColor: '#ffffff', mutedColor: '#cccccc',
+    accentColor: '#ffff00', borderColor: '#ffffff', upgradeHighlight: '#003300',
     swimlaneColors: {}
   }
 };
@@ -2603,63 +2588,28 @@ let AppState = {
   edges: []
 };
 
-function touchState() {
-  AppState.meta.lastModified = new Date().toISOString();
-}
+function touchState() { AppState.meta.lastModified = new Date().toISOString(); }
 
 // ================================================================
-// 2. STATE HISTORY (undo/redo)
+// 2. STATE HISTORY
 // ================================================================
 const StateHistory = (() => {
   const MAX = 50;
-  let past = [];
-  let future = [];
+  let past = [], future = [];
 
-  function snapshot() {
-    return deepClone(AppState);
-  }
-
-  function push() {
-    past.push(snapshot());
-    if (past.length > MAX) past.shift();
-    future = [];
-    updateUndoRedoUI();
-  }
-
-  function undo() {
-    if (!past.length) return;
-    future.push(snapshot());
-    AppState = past.pop();
-    updateUndoRedoUI();
-    onStateRestored();
-  }
-
-  function redo() {
-    if (!future.length) return;
-    past.push(snapshot());
-    AppState = future.pop();
-    updateUndoRedoUI();
-    onStateRestored();
-  }
-
-  function clear() {
-    past = [];
-    future = [];
-    updateUndoRedoUI();
-  }
-
+  function snapshot() { return deepClone(AppState); }
+  function push() { past.push(snapshot()); if (past.length > MAX) past.shift(); future = []; updateUndoRedoUI(); }
+  function undo() { if (!past.length) return; future.push(snapshot()); AppState = past.pop(); updateUndoRedoUI(); onStateRestored(); }
+  function redo() { if (!future.length) return; past.push(snapshot()); AppState = future.pop(); updateUndoRedoUI(); onStateRestored(); }
+  function clear() { past = []; future = []; updateUndoRedoUI(); }
   function canUndo() { return past.length > 0; }
   function canRedo() { return future.length > 0; }
-
   return { push, undo, redo, clear, canUndo, canRedo };
 })();
 
 function updateUndoRedoUI() {
-  // Will be wired once DOM is ready
-  const btnUndo = document.getElementById('btn-undo');
-  const btnRedo = document.getElementById('btn-redo');
-  if (btnUndo) btnUndo.disabled = !StateHistory.canUndo();
-  if (btnRedo) btnRedo.disabled = !StateHistory.canRedo();
+  const u = document.getElementById('btn-undo'); if (u) u.disabled = !StateHistory.canUndo();
+  const r = document.getElementById('btn-redo'); if (r) r.disabled = !StateHistory.canRedo();
 }
 
 function onStateRestored() {
@@ -2675,75 +2625,56 @@ const CategoryManager = (() => {
   function getAll() { return AppState.categories; }
 
   function add(name) {
-    const trimmed = name.trim();
-    if (!trimmed) return null;
-    if (AppState.categories.includes(trimmed)) return trimmed;
+    const t = name.trim();
+    if (!t || AppState.categories.includes(t)) return t || null;
     StateHistory.push();
-    AppState.categories.push(trimmed);
-    if (!AppState.meta.customTheme.swimlaneColors[trimmed]) {
-      const idx = AppState.categories.length - 1;
-      AppState.meta.customTheme.swimlaneColors[trimmed] = DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
-      // Apply to all themes
-      for (const t of ['light','dark','highContrast']) {
-        PRESET_THEMES[t].swimlaneColors[trimmed] = DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
-      }
-    }
-    touchState();
-    AutoSave.schedule();
-    return trimmed;
+    AppState.categories.push(t);
+    const idx = AppState.categories.length - 1;
+    const color = DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
+    AppState.meta.customTheme.swimlaneColors[t] = color;
+    for (const k of ['light','dark','highContrast']) PRESET_THEMES[k].swimlaneColors[t] = color;
+    touchState(); AutoSave.schedule();
+    return t;
   }
 
   function rename(oldName, newName) {
-    const trimmed = newName.trim();
-    if (!trimmed || oldName === trimmed) return false;
-    if (AppState.categories.includes(trimmed)) {
-      showToast(`Category "${trimmed}" already exists.`, 'error');
-      return false;
-    }
+    const t = newName.trim();
+    if (!t || oldName === t) return false;
+    if (AppState.categories.includes(t)) { showToast(`Category "${t}" already exists.`, 'error'); return false; }
     StateHistory.push();
     const idx = AppState.categories.indexOf(oldName);
     if (idx === -1) return false;
-    AppState.categories[idx] = trimmed;
-    AppState.nodes.forEach(n => { if (n.category === oldName) n.category = trimmed; });
-    AppState.upgradeTargets.forEach(t => { if (t.category === oldName) t.category = trimmed; });
-    // Move swimlane color
+    AppState.categories[idx] = t;
+    AppState.nodes.forEach(n => { if (n.category === oldName) n.category = t; });
+    AppState.upgradeTargets.forEach(u => { if (u.category === oldName) u.category = t; });
     const color = AppState.meta.customTheme.swimlaneColors[oldName];
     if (color) {
-      AppState.meta.customTheme.swimlaneColors[trimmed] = color;
+      AppState.meta.customTheme.swimlaneColors[t] = color;
       delete AppState.meta.customTheme.swimlaneColors[oldName];
-      for (const t of ['light','dark','highContrast']) {
-        PRESET_THEMES[t].swimlaneColors[trimmed] = color;
-        delete PRESET_THEMES[t].swimlaneColors[oldName];
-      }
+      for (const k of ['light','dark','highContrast']) { PRESET_THEMES[k].swimlaneColors[t] = color; delete PRESET_THEMES[k].swimlaneColors[oldName]; }
     }
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return true;
   }
 
   function remove(name) {
-    const usingNodes = AppState.nodes.filter(n => n.category === name);
-    const usingTargets = AppState.upgradeTargets.filter(t => t.category === name);
-    if (usingNodes.length || usingTargets.length) {
-      const items = [
-        ...usingNodes.map(n => `node "${n.name}"`),
-        ...usingTargets.map(t => `target "${t.name}"`)
-      ].join(', ');
-      showToast(`Cannot delete "${name}": used by ${items}. Reassign first.`, 'error', 5000);
+    const un = AppState.nodes.filter(n => n.category === name);
+    const ut = AppState.upgradeTargets.filter(t => t.category === name);
+    if (un.length || ut.length) {
+      showToast(`Cannot delete "${name}": used by ${[...un.map(n=>`"${n.name}"`), ...ut.map(t=>`"${t.name}"`)].join(', ')}. Reassign first.`, 'error', 5000);
       return false;
     }
     StateHistory.push();
     AppState.categories = AppState.categories.filter(c => c !== name);
     delete AppState.meta.customTheme.swimlaneColors[name];
-    for (const t of ['light','dark','highContrast']) delete PRESET_THEMES[t].swimlaneColors[name];
-    touchState();
-    AutoSave.schedule();
+    for (const k of ['light','dark','highContrast']) delete PRESET_THEMES[k].swimlaneColors[name];
+    touchState(); AutoSave.schedule();
     return true;
   }
 
   function getSwimlaneColor(name) {
-    const theme = ThemeController.active();
-    return theme.swimlaneColors[name] || DEFAULT_PALETTE[AppState.categories.indexOf(name) % DEFAULT_PALETTE.length] || '#94a3b8';
+    const t = ThemeController.active();
+    return t.swimlaneColors[name] || DEFAULT_PALETTE[AppState.categories.indexOf(name) % DEFAULT_PALETTE.length] || '#94a3b8';
   }
 
   return { getAll, add, rename, remove, getSwimlaneColor };
@@ -2761,7 +2692,6 @@ const UpgradeTargetManager = (() => {
   }
 
   function getAll() { return AppState.upgradeTargets; }
-
   function getById(id) { return AppState.upgradeTargets.find(t => t.id === id) || null; }
 
   function add(data) {
@@ -2769,38 +2699,21 @@ const UpgradeTargetManager = (() => {
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
     const days = durationToDays(data.estimatedDuration.value, data.estimatedDuration.unit);
-    const target = {
-      id: uuid(),
-      name: data.name.trim(),
-      category: data.category.trim(),
-      estimatedDuration: { ...data.estimatedDuration },
-      color: data.color || null,
-      gantt: { startOffset: 0, durationDays: days }
-    };
+    const target = { id: uuid(), name: data.name.trim(), category: data.category.trim(), estimatedDuration: { ...data.estimatedDuration }, color: data.color || null, gantt: { startOffset: 0, durationDays: days } };
     AppState.upgradeTargets.push(target);
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return target;
   }
 
   function update(id, data) {
     const idx = AppState.upgradeTargets.findIndex(t => t.id === id);
-    if (idx === -1) return false;
-    if (!data.name?.trim() || !data.category?.trim()) return false;
+    if (idx === -1 || !data.name?.trim() || !data.category?.trim()) return false;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
     const days = durationToDays(data.estimatedDuration.value, data.estimatedDuration.unit);
-    const existing = AppState.upgradeTargets[idx];
-    AppState.upgradeTargets[idx] = {
-      ...existing,
-      name: data.name.trim(),
-      category: data.category.trim(),
-      estimatedDuration: { ...data.estimatedDuration },
-      color: data.color || null,
-      gantt: { ...existing.gantt, durationDays: days }
-    };
-    touchState();
-    AutoSave.schedule();
+    const ex = AppState.upgradeTargets[idx];
+    AppState.upgradeTargets[idx] = { ...ex, name: data.name.trim(), category: data.category.trim(), estimatedDuration: { ...data.estimatedDuration }, color: data.color || null, gantt: { ...ex.gantt, durationDays: days } };
+    touchState(); AutoSave.schedule();
     return true;
   }
 
@@ -2808,14 +2721,11 @@ const UpgradeTargetManager = (() => {
     StateHistory.push();
     AppState.upgradeTargets = AppState.upgradeTargets.filter(t => t.id !== id);
     AppState.nodes.forEach(n => { if (n.upgradeTargetId === id) n.upgradeTargetId = null; });
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return true;
   }
 
-  function nodesUsingTarget(targetId) {
-    return AppState.nodes.filter(n => n.upgradeTargetId === targetId);
-  }
+  function nodesUsingTarget(targetId) { return AppState.nodes.filter(n => n.upgradeTargetId === targetId); }
 
   return { getAll, getById, add, update, remove, nodesUsingTarget, durationToDays };
 })();
@@ -2825,53 +2735,35 @@ const UpgradeTargetManager = (() => {
 // ================================================================
 const NodeManager = (() => {
   function getAll() { return AppState.nodes; }
-
   function getById(id) { return AppState.nodes.find(n => n.id === id) || null; }
 
   function add(data) {
     if (!data.name?.trim() || !data.category?.trim()) return null;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    const node = {
-      id: uuid(),
-      name: data.name.trim(),
-      category: data.category.trim(),
-      upgradeTargetId: data.upgradeTargetId || null,
-      iconDataUrl: data.iconDataUrl || null,
-      position: data.position || { x: 200 + Math.random() * 400, y: 200 + Math.random() * 300 }
-    };
+    const node = { id: uuid(), name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, iconDataUrl: data.iconDataUrl || null, position: data.position || { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 } };
     AppState.nodes.push(node);
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return node;
   }
 
   function update(id, data) {
     const idx = AppState.nodes.findIndex(n => n.id === id);
-    if (idx === -1) return false;
-    if (!data.name?.trim() || !data.category?.trim()) return false;
+    if (idx === -1 || !data.name?.trim() || !data.category?.trim()) return false;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    AppState.nodes[idx] = {
-      ...AppState.nodes[idx],
-      name: data.name.trim(),
-      category: data.category.trim(),
-      upgradeTargetId: data.upgradeTargetId || null,
-      iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl
-    };
-    touchState();
-    AutoSave.schedule();
+    AppState.nodes[idx] = { ...AppState.nodes[idx], name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl };
+    touchState(); AutoSave.schedule();
     return true;
   }
 
   function remove(id) {
-    const affectedEdges = AppState.edges.filter(e => e.sourceNodeId === id || e.targetNodeId === id);
+    const aff = AppState.edges.filter(e => e.sourceNodeId === id || e.targetNodeId === id);
     StateHistory.push();
     AppState.nodes = AppState.nodes.filter(n => n.id !== id);
     AppState.edges = AppState.edges.filter(e => e.sourceNodeId !== id && e.targetNodeId !== id);
-    touchState();
-    AutoSave.schedule();
-    return { removedEdgeCount: affectedEdges.length };
+    touchState(); AutoSave.schedule();
+    return { removedEdgeCount: aff.length };
   }
 
   function updatePosition(id, x, y) {
@@ -2887,23 +2779,14 @@ const NodeManager = (() => {
 // ================================================================
 const EdgeManager = (() => {
   function getAll() { return AppState.edges; }
-
   function getById(id) { return AppState.edges.find(e => e.id === id) || null; }
 
   function add(data) {
-    if (!data.sourceNodeId || !data.targetNodeId) return null;
-    if (data.sourceNodeId === data.targetNodeId) return null;
+    if (!data.sourceNodeId || !data.targetNodeId || data.sourceNodeId === data.targetNodeId) return null;
     StateHistory.push();
-    const edge = {
-      id: uuid(),
-      sourceNodeId: data.sourceNodeId,
-      targetNodeId: data.targetNodeId,
-      label: data.label?.trim() || '',
-      direction: data.direction || 'out'
-    };
+    const edge = { id: uuid(), sourceNodeId: data.sourceNodeId, targetNodeId: data.targetNodeId, label: data.label?.trim() || '', direction: data.direction || 'out' };
     AppState.edges.push(edge);
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return edge;
   }
 
@@ -2911,46 +2794,38 @@ const EdgeManager = (() => {
     const idx = AppState.edges.findIndex(e => e.id === id);
     if (idx === -1) return false;
     StateHistory.push();
-    AppState.edges[idx] = {
-      ...AppState.edges[idx],
-      label: data.label?.trim() ?? AppState.edges[idx].label,
-      direction: data.direction || AppState.edges[idx].direction
-    };
-    touchState();
-    AutoSave.schedule();
+    AppState.edges[idx] = { ...AppState.edges[idx], label: data.label?.trim() ?? AppState.edges[idx].label, direction: data.direction || AppState.edges[idx].direction };
+    touchState(); AutoSave.schedule();
     return true;
   }
 
   function remove(id) {
     StateHistory.push();
     AppState.edges = AppState.edges.filter(e => e.id !== id);
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
     return true;
   }
 
-  function edgesForNode(nodeId) {
-    return AppState.edges.filter(e => e.sourceNodeId === nodeId || e.targetNodeId === nodeId);
-  }
+  function edgesForNode(nodeId) { return AppState.edges.filter(e => e.sourceNodeId === nodeId || e.targetNodeId === nodeId); }
 
   function connectionDisplays(nodeId) {
-    const displays = [];
+    const out = [];
     for (const edge of AppState.edges) {
       if (edge.sourceNodeId === nodeId) {
         const other = NodeManager.getById(edge.targetNodeId);
         if (!other) continue;
-        if (edge.direction === 'out')  displays.push({ icon: '→', text: `Data out to ${other.name}`, label: edge.label });
-        if (edge.direction === 'in')   displays.push({ icon: '←', text: `Data in from ${other.name}`, label: edge.label });
-        if (edge.direction === 'both') displays.push({ icon: '↔', text: `Bidirectional with ${other.name}`, label: edge.label });
+        if (edge.direction === 'out')  out.push({ icon: '→', text: `Data out to ${other.name}`, label: edge.label });
+        if (edge.direction === 'in')   out.push({ icon: '←', text: `Data in from ${other.name}`, label: edge.label });
+        if (edge.direction === 'both') out.push({ icon: '↔', text: `Bidirectional with ${other.name}`, label: edge.label });
       } else if (edge.targetNodeId === nodeId) {
         const other = NodeManager.getById(edge.sourceNodeId);
         if (!other) continue;
-        if (edge.direction === 'out')  displays.push({ icon: '←', text: `Data in from ${other.name}`, label: edge.label });
-        if (edge.direction === 'in')   displays.push({ icon: '→', text: `Data out to ${other.name}`, label: edge.label });
-        if (edge.direction === 'both') displays.push({ icon: '↔', text: `Bidirectional with ${other.name}`, label: edge.label });
+        if (edge.direction === 'out')  out.push({ icon: '←', text: `Data in from ${other.name}`, label: edge.label });
+        if (edge.direction === 'in')   out.push({ icon: '→', text: `Data out to ${other.name}`, label: edge.label });
+        if (edge.direction === 'both') out.push({ icon: '↔', text: `Bidirectional with ${other.name}`, label: edge.label });
       }
     }
-    return displays;
+    return out;
   }
 
   return { getAll, getById, add, update, remove, edgesForNode, connectionDisplays };
@@ -2962,67 +2837,48 @@ const EdgeManager = (() => {
 const FutureStateComputer = (() => {
   function compute() {
     const futureNodes = [];
-    const targetToFutureNode = new Map();
-    const nodeToFutureNode = new Map();
+    const targetToFn = new Map();
+    const nodeToFn = new Map();
 
-    // Nodes with upgrade targets → replaced
     for (const node of AppState.nodes) {
       if (node.upgradeTargetId) {
         const target = UpgradeTargetManager.getById(node.upgradeTargetId);
-        if (!target) continue;
-        if (!targetToFutureNode.has(target.id)) {
-          targetToFutureNode.set(target.id, {
-            id: `future-${target.id}`,
-            name: target.name,
-            category: target.category,
-            isFuture: true,
-            replacesCount: 0,
-            positions: [],
-            sourceTargetId: target.id
-          });
+        if (!target) { nodeToFn.set(node.id, { ...node, isUnchanged: true }); futureNodes.push({ ...node, isUnchanged: true }); continue; }
+        if (!targetToFn.has(target.id)) {
+          targetToFn.set(target.id, { id: `future-${target.id}`, name: target.name, category: target.category, isFuture: true, replacesCount: 0, positions: [], sourceTargetId: target.id, upgradeTargetId: null });
         }
-        const fn = targetToFutureNode.get(target.id);
+        const fn = targetToFn.get(target.id);
         fn.replacesCount++;
         fn.positions.push(node.position);
-        nodeToFutureNode.set(node.id, fn);
+        nodeToFn.set(node.id, fn);
       } else {
         const unchanged = { ...node, isUnchanged: true };
-        nodeToFutureNode.set(node.id, unchanged);
+        nodeToFn.set(node.id, unchanged);
         futureNodes.push(unchanged);
       }
     }
 
-    for (const [, fn] of targetToFutureNode) {
-      if (fn.positions.length) {
-        fn.position = {
-          x: fn.positions.reduce((s, p) => s + p.x, 0) / fn.positions.length,
-          y: fn.positions.reduce((s, p) => s + p.y, 0) / fn.positions.length
-        };
-      }
+    for (const [, fn] of targetToFn) {
+      if (fn.positions.length) fn.position = { x: fn.positions.reduce((s,p) => s+p.x, 0)/fn.positions.length, y: fn.positions.reduce((s,p) => s+p.y, 0)/fn.positions.length };
       futureNodes.push(fn);
     }
 
-    // Rewrite edges
     const futureEdges = [];
     const seen = new Set();
     for (const edge of AppState.edges) {
-      const fs = nodeToFutureNode.get(edge.sourceNodeId);
-      const ft = nodeToFutureNode.get(edge.targetNodeId);
+      const fs = nodeToFn.get(edge.sourceNodeId);
+      const ft = nodeToFn.get(edge.targetNodeId);
       if (!fs || !ft) continue;
-      const fsId = fs.id || fs.sourceTargetId || edge.sourceNodeId;
-      const ftId = ft.id || ft.sourceTargetId || edge.targetNodeId;
-      const futureSourceId = fs.isFuture ? `future-${fs.sourceTargetId}` : fs.id;
-      const futureTargetId = ft.isFuture ? `future-${ft.sourceTargetId}` : ft.id;
-      if (futureSourceId === futureTargetId) continue;
-      const key = `${futureSourceId}|${futureTargetId}|${edge.direction}`;
+      const fsId = fs.isFuture ? `future-${fs.sourceTargetId}` : fs.id;
+      const ftId = ft.isFuture ? `future-${ft.sourceTargetId}` : ft.id;
+      if (fsId === ftId) continue;
+      const key = `${fsId}|${ftId}|${edge.direction}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      futureEdges.push({ ...edge, sourceNodeId: futureSourceId, targetNodeId: futureTargetId });
+      futureEdges.push({ ...edge, sourceNodeId: fsId, targetNodeId: ftId });
     }
-
     return { nodes: futureNodes, edges: futureEdges };
   }
-
   return { compute };
 })();
 
@@ -3033,122 +2889,602 @@ const AutoPhasingEngine = (() => {
   function run() {
     const targets = AppState.upgradeTargets;
     if (!targets.length) return;
-
     const ids = targets.map(t => t.id);
     const deps = new Map(ids.map(id => [id, new Set()]));
-
     for (const edge of AppState.edges) {
       const src = AppState.nodes.find(n => n.id === edge.sourceNodeId);
       const tgt = AppState.nodes.find(n => n.id === edge.targetNodeId);
-      if (!src || !tgt) continue;
-      const srcTarget = src.upgradeTargetId;
-      const tgtTarget = tgt.upgradeTargetId;
-      if (!srcTarget || !tgtTarget || srcTarget === tgtTarget) continue;
-
-      if (edge.direction === 'out' || edge.direction === 'both') deps.get(tgtTarget)?.add(srcTarget);
-      if (edge.direction === 'in'  || edge.direction === 'both') deps.get(srcTarget)?.add(tgtTarget);
+      if (!src?.upgradeTargetId || !tgt?.upgradeTargetId || src.upgradeTargetId === tgt.upgradeTargetId) continue;
+      if (edge.direction === 'out' || edge.direction === 'both') deps.get(tgt.upgradeTargetId)?.add(src.upgradeTargetId);
+      if (edge.direction === 'in'  || edge.direction === 'both') deps.get(src.upgradeTargetId)?.add(tgt.upgradeTargetId);
     }
-
-    // Break cycles: if A→B and B→A, remove B→A
-    for (const [id, depSet] of deps) {
-      for (const dep of [...depSet]) {
-        if (deps.get(dep)?.has(id)) {
-          const keep = id < dep ? dep : id;
-          const remove = id < dep ? id : dep;
-          deps.get(remove)?.delete(keep);
-          showToast(`Circular dependency between targets — scheduling by name order.`, 'warning', 4000);
-        }
-      }
+    for (const [id, depSet] of deps) for (const dep of [...depSet]) {
+      if (deps.get(dep)?.has(id)) { const keep = id < dep ? dep : id; const rem = id < dep ? id : dep; deps.get(rem)?.delete(keep); showToast('Circular dependency detected — scheduling by name order.', 'warning', 4000); }
     }
-
-    // Kahn's topological sort
-    const inDegree = new Map(ids.map(id => [id, 0]));
-    for (const [, depSet] of deps) for (const dep of depSet) inDegree.set(dep, (inDegree.get(dep) || 0) + 1);
-
-    const queue = ids.filter(id => (inDegree.get(id) || 0) === 0);
-    const startOffsets = new Map(ids.map(id => [id, 0]));
-
+    const inDeg = new Map(ids.map(id => [id, 0]));
+    for (const [, depSet] of deps) for (const dep of depSet) inDeg.set(dep, (inDeg.get(dep)||0)+1);
+    const queue = ids.filter(id => (inDeg.get(id)||0) === 0);
+    const offsets = new Map(ids.map(id => [id, 0]));
     while (queue.length) {
       const id = queue.shift();
       const target = targets.find(t => t.id === id);
       if (!target) continue;
-      const myEnd = startOffsets.get(id) + target.gantt.durationDays;
-
+      const myEnd = offsets.get(id) + target.gantt.durationDays;
       for (const [nextId, nextDeps] of deps) {
         if (!nextDeps.has(id)) continue;
-        startOffsets.set(nextId, Math.max(startOffsets.get(nextId) || 0, myEnd));
-        inDegree.set(nextId, (inDegree.get(nextId) || 1) - 1);
-        if (inDegree.get(nextId) === 0) queue.push(nextId);
+        offsets.set(nextId, Math.max(offsets.get(nextId)||0, myEnd));
+        inDeg.set(nextId, (inDeg.get(nextId)||1)-1);
+        if (inDeg.get(nextId) === 0) queue.push(nextId);
       }
     }
-
     StateHistory.push();
-    for (const target of targets) {
-      target.gantt.startOffset = startOffsets.get(target.id) || 0;
-      target.gantt.durationDays = UpgradeTargetManager.durationToDays(
-        target.estimatedDuration.value, target.estimatedDuration.unit
-      );
+    for (const t of targets) {
+      t.gantt.startOffset = offsets.get(t.id) || 0;
+      t.gantt.durationDays = UpgradeTargetManager.durationToDays(t.estimatedDuration.value, t.estimatedDuration.unit);
     }
-    touchState();
-    AutoSave.schedule();
+    touchState(); AutoSave.schedule();
   }
-
   return { run };
 })();
 
 // ================================================================
-// 9. DIAGRAM VIEW CONTROLLER (stub — canvas rendered later)
+// 9. DIAGRAM VIEW CONTROLLER
 // ================================================================
 const DiagramViewController = (() => {
-  let cyInstance = null;
-  let currentMode = 'current'; // 'current' | 'future'
+  let cy = null;
+  let mode = 'current';
+  let activeFilters = new Set(); // empty = all shown
+  let searchQuery = '';
+  let fcoseReady = false;
+  let contextNodeId = null;
+
+  // ── SVG Node Card ──────────────────────────────────────────
+  function buildNodeSVG(opts) {
+    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, isFuture, isUnchanged, replacesCount } = opts;
+    const theme = ThemeController.active();
+
+    const W = 220, LB = 4, PL = LB + 10, PR = 10, PV = 10;
+    const MAX_CONN = 5;
+    const ICON_H = iconDataUrl ? 30 : 0, ICON_GAP = iconDataUrl ? 6 : 0;
+    const NAME_H = 18, CAT_H = 15;
+    const shown = Math.min(connections.length, MAX_CONN);
+    const hasSep = hasUpgrade || connections.length > 0;
+    const SEP_H = hasSep ? 14 : 0;
+    const BADGE_H = hasUpgrade ? 22 : 0;
+    const MORE_H = connections.length > MAX_CONN ? 14 : 0;
+    const CONN_H = shown * 15;
+    const H = PV + ICON_H + ICON_GAP + NAME_H + CAT_H + SEP_H + BADGE_H + CONN_H + MORE_H + PV;
+
+    const surf  = theme.surface    || '#ffffff';
+    const text  = theme.textColor  || '#1e293b';
+    const muted = theme.mutedColor || '#64748b';
+    const bord  = theme.borderColor|| '#e2e8f0';
+    const uhl   = theme.upgradeHighlight || '#fef9c3';
+
+    const bgFill = isFuture ? (surf === '#ffffff' ? '#e0f7ff' : '#0a2233')
+                 : isUnchanged ? surf : surf;
+
+    const p = [];
+    p.push(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}">`);
+    p.push(`<rect width="${W}" height="${H}" rx="8" fill="${bgFill}" stroke="${bord}" stroke-width="1"/>`);
+    p.push(`<rect x="0" y="8" width="${LB}" height="${H-16}" rx="2" fill="${categoryColor}"/>`);
+
+    if (isUnchanged) {
+      p.push(`<rect width="${W}" height="${H}" rx="8" fill="rgba(100,116,139,0.35)"/>`);
+    }
+
+    // Top-right badges
+    let badgeY = 7;
+    if (isFuture) {
+      p.push(`<rect x="${W-52}" y="${badgeY}" width="46" height="15" rx="3" fill="#0ea5e9"/>`);
+      p.push(`<text x="${W-29}" y="${badgeY+11}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white">FUTURE</text>`);
+      badgeY += 18;
+    }
+    if (replacesCount > 1) {
+      p.push(`<rect x="${W-72}" y="${badgeY}" width="66" height="15" rx="3" fill="#7c3aed"/>`);
+      p.push(`<text x="${W-39}" y="${badgeY+11}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="white">Replaces ${replacesCount}</text>`);
+    }
+    if (isUnchanged) {
+      p.push(`<rect x="${W-66}" y="${badgeY}" width="60" height="15" rx="3" fill="#6b7280"/>`);
+      p.push(`<text x="${W-36}" y="${badgeY+11}" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="white">NO CHANGE</text>`);
+    }
+
+    let y = PV;
+    if (iconDataUrl) {
+      p.push(`<image href="${iconDataUrl}" x="${PL}" y="${y}" width="28" height="28" preserveAspectRatio="xMidYMid meet"/>`);
+      y += ICON_H + ICON_GAP;
+    }
+
+    const nameStr = name.length > 22 ? name.slice(0,21)+'…' : name;
+    const nameColor = isUnchanged ? muted : text;
+    p.push(`<text x="${PL}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="13" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
+    y += NAME_H;
+
+    const catStr = category.length > 28 ? category.slice(0,27)+'…' : category;
+    p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="${muted}">${escapeXml(catStr)}</text>`);
+    y += CAT_H;
+
+    if (hasSep) {
+      y += 5;
+      p.push(`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="${bord}" stroke-width="1"/>`);
+      y += 9;
+    }
+
+    if (hasUpgrade) {
+      const bText = `↗ ${(upgradeTargetName||'Target').slice(0,22)}`;
+      p.push(`<rect x="${PL}" y="${y}" width="${W-PL-PR}" height="18" rx="3" fill="${uhl}"/>`);
+      p.push(`<text x="${PL+5}" y="${y+13}" font-family="system-ui,sans-serif" font-size="11" fill="#92400e">${escapeXml(bText)}</text>`);
+      y += BADGE_H;
+    }
+
+    connections.slice(0, MAX_CONN).forEach(conn => {
+      const full = `${conn.icon} ${conn.text}${conn.label ? ` — ${conn.label}` : ''}`;
+      const tr = full.length > 26 ? full.slice(0,25)+'…' : full;
+      p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="11" fill="${muted}">${escapeXml(tr)}</text>`);
+      y += 15;
+    });
+
+    if (connections.length > MAX_CONN) {
+      p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="10" fill="${muted}">+${connections.length-MAX_CONN} more…</text>`);
+    }
+
+    p.push('</svg>');
+    return {
+      svgUri: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(p.join('')),
+      width: W, height: H
+    };
+  }
+
+  function getNodeSVGData(node) {
+    const target = node.upgradeTargetId ? UpgradeTargetManager.getById(node.upgradeTargetId) : null;
+    const connections = EdgeManager.connectionDisplays(node.id);
+    return buildNodeSVG({
+      name: node.name, category: node.category,
+      categoryColor: CategoryManager.getSwimlaneColor(node.category),
+      hasUpgrade: !!target, upgradeTargetName: target?.name || '',
+      connections, iconDataUrl: node.iconDataUrl,
+      isFuture: false, isUnchanged: false, replacesCount: 0
+    });
+  }
+
+  // ── Cytoscape style ─────────────────────────────────────────
+  function getCyStyle() {
+    const theme = ThemeController.active();
+    const edge = theme.edgeColor || '#94a3b8';
+    const text = theme.textColor || '#1e293b';
+    const accent = theme.accentColor || '#3b82f6';
+    return [
+      {
+        selector: 'node',
+        style: {
+          'shape': 'round-rectangle',
+          'width': 'data(w)', 'height': 'data(h)',
+          'background-image': 'data(svgUri)',
+          'background-fit': 'cover',
+          'background-color': 'transparent',
+          'border-width': 0,
+          'label': '',
+          'cursor': 'pointer'
+        }
+      },
+      {
+        selector: 'node:selected',
+        style: { 'border-width': 3, 'border-color': accent, 'border-opacity': 1 }
+      },
+      {
+        selector: 'node.dimmed',
+        style: { 'opacity': 0.25 }
+      },
+      {
+        selector: 'node.highlighted',
+        style: { 'border-width': 2, 'border-color': accent, 'border-opacity': 0.6 }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 2,
+          'line-color': edge,
+          'target-arrow-color': edge,
+          'source-arrow-color': edge,
+          'curve-style': 'bezier',
+          'label': 'data(label)',
+          'font-size': 10,
+          'color': text,
+          'text-background-color': theme.surface || '#ffffff',
+          'text-background-opacity': 0.85,
+          'text-background-padding': '2px',
+          'text-background-shape': 'round-rectangle',
+          'edge-text-rotation': 'autorotate',
+          'opacity': 0.85
+        }
+      },
+      {
+        selector: 'edge[direction="out"]',
+        style: { 'target-arrow-shape': 'triangle', 'source-arrow-shape': 'none' }
+      },
+      {
+        selector: 'edge[direction="in"]',
+        style: { 'source-arrow-shape': 'triangle', 'target-arrow-shape': 'none' }
+      },
+      {
+        selector: 'edge[direction="both"]',
+        style: { 'source-arrow-shape': 'triangle', 'target-arrow-shape': 'triangle' }
+      },
+      {
+        selector: 'edge.dimmed',
+        style: { 'opacity': 0.1 }
+      }
+    ];
+  }
+
+  // ── Element builders ────────────────────────────────────────
+  function buildCurrentElements() {
+    const nodes = AppState.nodes.map(node => {
+      const { svgUri, width, height } = getNodeSVGData(node);
+      return { data: { id: node.id, name: node.name, category: node.category, svgUri, w: width, h: height }, position: { ...node.position } };
+    });
+    const edges = AppState.edges.map(edge => ({
+      data: { id: edge.id, source: edge.sourceNodeId, target: edge.targetNodeId, label: edge.label, direction: edge.direction }
+    }));
+    return [...nodes, ...edges];
+  }
+
+  function buildFutureElements() {
+    const { nodes: fnodes, edges: fedges } = FutureStateComputer.compute();
+    if (!fnodes.length) return [];
+    const nodes = fnodes.map(fn => {
+      const target = fn.isFuture ? null : (fn.upgradeTargetId ? UpgradeTargetManager.getById(fn.upgradeTargetId) : null);
+      const { svgUri, width, height } = buildNodeSVG({
+        name: fn.name, category: fn.category,
+        categoryColor: CategoryManager.getSwimlaneColor(fn.category),
+        hasUpgrade: false, upgradeTargetName: '',
+        connections: [],
+        iconDataUrl: fn.iconDataUrl || null,
+        isFuture: !!fn.isFuture, isUnchanged: !!fn.isUnchanged, replacesCount: fn.replacesCount || 0
+      });
+      return { data: { id: fn.id, name: fn.name, category: fn.category, svgUri, w: width, h: height }, position: { ...(fn.position || { x: 300, y: 300 }) } };
+    });
+    const edges = fedges.map(e => ({
+      data: { id: e.id + '-f', source: e.sourceNodeId, target: e.targetNodeId, label: e.label, direction: e.direction }
+    }));
+    return [...nodes, ...edges];
+  }
+
+  // ── Init ────────────────────────────────────────────────────
+  function setEmptyState(show, msg) {
+    const el = document.getElementById('cy-empty');
+    if (!el) return;
+    if (show) {
+      el.classList.remove('hidden');
+      if (msg) el.querySelector('p:last-child').textContent = msg;
+    } else {
+      el.classList.add('hidden');
+    }
+  }
 
   function init() {
-    const container = document.getElementById('cy');
-    if (!container || typeof cytoscape === 'undefined') return;
-    // Will be fully implemented in diagram phase
-    renderPlaceholder();
-  }
+    if (typeof cytoscape === 'undefined') { setEmptyState(true); return; }
 
-  function renderPlaceholder() {
+    // Register fcose layout
+    try {
+      const fcoseExport = typeof cytoscapeFcose !== 'undefined' ? cytoscapeFcose
+                        : typeof window.cytoscapeFcose !== 'undefined' ? window.cytoscapeFcose
+                        : null;
+      if (fcoseExport) { cytoscape.use(fcoseExport); fcoseReady = true; }
+    } catch(e) {}
+
     const container = document.getElementById('cy');
     if (!container) return;
-    container.innerHTML = '';
-    const msg = document.createElement('div');
-    msg.className = 'canvas-placeholder';
-    msg.innerHTML = `
-      <div class="placeholder-icon">⬡</div>
-      <p>Network Diagram</p>
-      <p class="placeholder-sub">Add nodes to begin mapping your infrastructure.</p>
-    `;
-    container.appendChild(msg);
+
+    cy = cytoscape({
+      container,
+      elements: [],
+      style: getCyStyle(),
+      layout: { name: 'preset' },
+      minZoom: 0.1, maxZoom: 3,
+      wheelSensitivity: 0.3,
+      boxSelectionEnabled: true
+    });
+
+    bindCyEvents();
+    refresh();
   }
 
+  // ── Refresh ─────────────────────────────────────────────────
   function refresh() {
-    renderPlaceholder();
+    if (!cy) return;
+    if (mode === 'future') renderFuture();
+    else renderCurrent();
+    applyCategoryFilter();
+    applySearch();
   }
 
-  function getMode() { return currentMode; }
-  function setMode(m) { currentMode = m; refresh(); }
+  function renderCurrent() {
+    const els = buildCurrentElements();
+    const existingPositions = {};
+    cy.nodes().forEach(n => { existingPositions[n.id()] = n.position(); });
+    cy.json({ elements: els });
+    cy.nodes().forEach(n => { if (existingPositions[n.id()]) n.position(existingPositions[n.id()]); });
+    cy.style(getCyStyle());
+    setEmptyState(!AppState.nodes.length);
+  }
 
-  return { init, refresh, getMode, setMode };
+  function renderFuture() {
+    const { nodes } = FutureStateComputer.compute();
+    if (!nodes.length) {
+      cy.json({ elements: [] });
+      setEmptyState(true, 'Assign upgrade targets to nodes to see the future state.');
+      return;
+    }
+    setEmptyState(false);
+    const els = buildFutureElements();
+    cy.json({ elements: els });
+    cy.style(getCyStyle());
+  }
+
+  // ── Events ──────────────────────────────────────────────────
+  function bindCyEvents() {
+    // Tap node → select (highlight)
+    cy.on('tap', 'node', e => {
+      hideContextMenu();
+    });
+
+    // Double-click node → edit (current mode only)
+    cy.on('dblclick', 'node', e => {
+      if (mode === 'future') return;
+      ModalController.openNodeEditor(e.target.id());
+    });
+
+    // Right-click → context menu
+    cy.on('cxttap', 'node', e => {
+      if (mode === 'future') return;
+      e.preventDefault();
+      contextNodeId = e.target.id();
+      const rp = e.renderedPosition;
+      const container = document.getElementById('cy');
+      const rect = container.getBoundingClientRect();
+      showContextMenu(rect.left + rp.x, rect.top + rp.y);
+    });
+
+    // Drag end → save position
+    cy.on('dragfreeon', 'node', e => {
+      if (mode === 'future') return;
+      const pos = e.target.position();
+      NodeManager.updatePosition(e.target.id(), pos.x, pos.y);
+      AutoSave.schedule();
+    });
+
+    // Tap canvas → hide context menu
+    cy.on('tap', e => {
+      if (e.target === cy) hideContextMenu();
+    });
+
+    // Pan/zoom → hide context menu
+    cy.on('viewport', () => hideContextMenu());
+
+    // Prevent right-click menu on canvas
+    document.getElementById('cy').addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  // ── Context Menu ────────────────────────────────────────────
+  function showContextMenu(x, y) {
+    const menu = document.getElementById('cy-context-menu');
+    if (!menu) return;
+    menu.classList.remove('hidden');
+    menu.style.left = x + 'px';
+    menu.style.top  = y + 'px';
+    // Ensure menu stays within viewport
+    requestAnimationFrame(() => {
+      const rect = menu.getBoundingClientRect();
+      if (rect.right > window.innerWidth)  menu.style.left = (x - rect.width)  + 'px';
+      if (rect.bottom > window.innerHeight) menu.style.top = (y - rect.height) + 'px';
+    });
+  }
+
+  function hideContextMenu() {
+    const menu = document.getElementById('cy-context-menu');
+    if (menu) menu.classList.add('hidden');
+  }
+
+  function bindContextMenu() {
+    const menu = document.getElementById('cy-context-menu');
+    if (!menu) return;
+    menu.querySelectorAll('.ctx-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const nid = contextNodeId;
+        hideContextMenu();
+        if (!nid) return;
+        if (action === 'edit')           ModalController.openNodeEditor(nid);
+        if (action === 'delete')         deleteNode(nid);
+        if (action === 'add-connection') ModalController.openNodeEditor(nid);
+        if (action === 'set-target')     ModalController.openNodeEditor(nid);
+      });
+    });
+    document.addEventListener('click', e => {
+      if (!menu.contains(e.target)) hideContextMenu();
+    });
+  }
+
+  function deleteNode(nodeId) {
+    const node = NodeManager.getById(nodeId);
+    const edgeCount = EdgeManager.edgesForNode(nodeId).length;
+    const msg = edgeCount
+      ? `Delete "${node?.name}"? This will also remove ${edgeCount} connection(s).`
+      : `Delete "${node?.name}"?`;
+    ModalController.confirm(msg, () => {
+      NodeManager.remove(nodeId);
+      if (cy) cy.getElementById(nodeId).remove();
+      refresh();
+      GanttViewController.refresh();
+      showToast('Node deleted.', 'success');
+    });
+  }
+
+  // ── Layout ──────────────────────────────────────────────────
+  function runAutoLayout() {
+    if (!cy || !AppState.nodes.length) return;
+    const layoutName = fcoseReady ? 'fcose' : 'cose';
+    const opts = {
+      name: layoutName,
+      animate: true,
+      animationDuration: 600,
+      fit: true, padding: 40,
+      ...(layoutName === 'fcose' ? {
+        nodeRepulsion: 4500,
+        idealEdgeLength: 120,
+        edgeElasticity: 0.45,
+        gravity: 0.35,
+        numIter: 2500,
+        randomize: false
+      } : {
+        nodeRepulsion: 400000,
+        nodeOverlap: 20,
+        idealEdgeLength: 100,
+        edgeElasticity: 100,
+        gravity: 80
+      }),
+      stop: () => {
+        cy.nodes().forEach(n => {
+          const pos = n.position();
+          NodeManager.updatePosition(n.id(), pos.x, pos.y);
+        });
+        AutoSave.schedule();
+      }
+    };
+    try { cy.layout(opts).run(); } catch(e) {
+      // Fall back to cose
+      cy.layout({ name: 'cose', animate: true, animationDuration: 600, fit: true, stop: opts.stop }).run();
+    }
+  }
+
+  // ── Search / Filter ─────────────────────────────────────────
+  function setSearch(query) {
+    searchQuery = query.toLowerCase().trim();
+    applySearch();
+  }
+
+  function applySearch() {
+    if (!cy) return;
+    if (!searchQuery) {
+      cy.elements().removeClass('dimmed highlighted');
+      applyCategoryFilter();
+      return;
+    }
+    cy.nodes().forEach(n => {
+      const name = (n.data('name') || '').toLowerCase();
+      const cat  = (n.data('category') || '').toLowerCase();
+      if (name.includes(searchQuery) || cat.includes(searchQuery)) {
+        n.removeClass('dimmed').addClass('highlighted');
+      } else {
+        n.addClass('dimmed').removeClass('highlighted');
+      }
+    });
+    cy.edges().addClass('dimmed');
+  }
+
+  function setFilter(cats) {
+    activeFilters = cats;
+    applyCategoryFilter();
+  }
+
+  function applyCategoryFilter() {
+    if (!cy || searchQuery) return;
+    if (!activeFilters.size) { cy.elements().removeClass('dimmed highlighted'); return; }
+    cy.nodes().forEach(n => {
+      if (activeFilters.has(n.data('category'))) n.removeClass('dimmed');
+      else n.addClass('dimmed');
+    });
+    cy.edges().forEach(e => {
+      const src = cy.getElementById(e.data('source'));
+      const tgt = cy.getElementById(e.data('target'));
+      if (src.hasClass('dimmed') || tgt.hasClass('dimmed')) e.addClass('dimmed');
+      else e.removeClass('dimmed');
+    });
+  }
+
+  function buildCategoryChips() {
+    const chips = document.getElementById('cat-chips');
+    if (!chips) return;
+    chips.innerHTML = '';
+    AppState.categories.forEach(cat => {
+      const chip = document.createElement('div');
+      chip.className = 'cat-chip';
+      chip.textContent = cat;
+      chip.dataset.cat = cat;
+      chip.style.borderLeftColor = CategoryManager.getSwimlaneColor(cat);
+      chip.addEventListener('click', () => {
+        chip.classList.toggle('active');
+        const allBtn = document.getElementById('cat-chip-all');
+        const activeCats = [...chips.querySelectorAll('.cat-chip.active')].map(c => c.dataset.cat);
+        if (activeCats.length === 0 || activeCats.length === AppState.categories.length) {
+          allBtn?.classList.add('active');
+          chips.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+          setFilter(new Set());
+        } else {
+          allBtn?.classList.remove('active');
+          setFilter(new Set(activeCats));
+        }
+      });
+      chips.appendChild(chip);
+    });
+    document.getElementById('cat-chip-all')?.addEventListener('click', () => {
+      document.getElementById('cat-chip-all')?.classList.add('active');
+      chips.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+      setFilter(new Set());
+    });
+  }
+
+  // ── Mode ────────────────────────────────────────────────────
+  function setMode(m) {
+    mode = m;
+    const toggleBtn = document.getElementById('btn-toggle-state');
+    const banner = document.getElementById('future-state-banner');
+    if (m === 'future') {
+      if (toggleBtn) { toggleBtn.textContent = 'Future State'; toggleBtn.classList.add('active'); }
+      if (banner) banner.classList.add('visible');
+    } else {
+      if (toggleBtn) { toggleBtn.textContent = 'Current State'; toggleBtn.classList.remove('active'); }
+      if (banner) banner.classList.remove('visible');
+    }
+    refresh();
+  }
+
+  function getMode() { return mode; }
+
+  function zoomIn()  { cy?.zoom({ level: cy.zoom() * 1.2, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } }); }
+  function zoomOut() { cy?.zoom({ level: cy.zoom() * 0.8, renderedPosition: { x: cy.width()/2, y: cy.height()/2 } }); }
+  function fit()     { cy?.fit(undefined, 40); }
+
+  function exportPNG() {
+    if (!cy) { showToast('Diagram not ready.', 'error'); return; }
+    try {
+      const png = cy.png({ full: true, scale: 2, bg: ThemeController.active().background || '#f8fafc' });
+      const a = document.createElement('a');
+      a.href = png; a.download = 'diagram.png'; a.click();
+      showToast('Diagram exported.', 'success');
+    } catch(e) { showToast('Export failed.', 'error'); }
+  }
+
+  return { init, refresh, runAutoLayout, setSearch, setFilter, buildCategoryChips, setMode, getMode, zoomIn, zoomOut, fit, exportPNG, hideContextMenu, bindContextMenu };
 })();
 
 // ================================================================
-// 10. GANTT VIEW CONTROLLER (stub — canvas rendered later)
+// 10. GANTT VIEW CONTROLLER (stub — phase 3)
 // ================================================================
 const GanttViewController = (() => {
-  function init() { renderPlaceholder(); }
+  function init()    { renderPlaceholder(); }
+  function refresh() { renderPlaceholder(); }
 
   function renderPlaceholder() {
     const container = document.getElementById('gantt-body');
     if (!container) return;
     if (!AppState.upgradeTargets.length) {
-      container.innerHTML = `<div class="canvas-placeholder"><div class="placeholder-icon">▦</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>`;
+      container.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
+    } else {
+      container.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Gantt chart coming in phase 3.</p></div>';
     }
   }
-
-  function refresh() { renderPlaceholder(); }
 
   return { init, refresh };
 })();
@@ -3159,13 +3495,11 @@ const GanttViewController = (() => {
 const ExportController = (() => {
   function saveJSON() {
     touchState();
-    const data = JSON.stringify(AppState, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(AppState, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const title = AppState.meta.diagramTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'project';
-    a.download = `${title}.infra.json`;
+    a.download = (AppState.meta.diagramTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'project') + '.infra.json';
     a.click();
     URL.revokeObjectURL(url);
     showToast('Project saved.', 'success');
@@ -3173,34 +3507,20 @@ const ExportController = (() => {
 
   function loadJSON() {
     const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,application/json';
+    input.type = 'file'; input.accept = '.json,application/json';
     input.onchange = e => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const file = e.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = evt => {
-        try {
-          const parsed = JSON.parse(evt.target.result);
-          validateAndLoadState(parsed);
-        } catch {
-          showToast('Invalid JSON file.', 'error');
-        }
-      };
+      reader.onload = evt => { try { validateAndLoadState(JSON.parse(evt.target.result)); } catch { showToast('Invalid JSON file.', 'error'); } };
       reader.readAsText(file);
     };
     input.click();
   }
 
   function validateAndLoadState(parsed) {
-    const required = ['meta','categories','upgradeTargets','nodes','edges'];
-    const missing = required.filter(k => !(k in parsed));
-    if (missing.length) {
-      showToast(`Invalid project file — missing: ${missing.join(', ')}`, 'error', 5000);
-      return;
-    }
+    const missing = ['meta','categories','upgradeTargets','nodes','edges'].filter(k => !(k in parsed));
+    if (missing.length) { showToast(`Invalid project file — missing: ${missing.join(', ')}`, 'error', 5000); return; }
     StateHistory.clear();
-    // Merge known fields only (forward-compatible: unknown fields silently ignored)
     AppState = {
       meta: {
         diagramTitle: parsed.meta?.diagramTitle || 'Infrastructure Map',
@@ -3221,29 +3541,21 @@ const ExportController = (() => {
     AutoSave.schedule();
   }
 
-  async function exportDiagramPNG() {
-    // Will be implemented in diagram phase using cy.png()
-    showToast('Export diagram: available after diagram phase.', 'info');
-  }
+  async function exportDiagramPNG() { DiagramViewController.exportPNG(); }
 
   async function exportRoadmapPNG() {
     const el = document.getElementById('gantt-container');
     if (!el || typeof html2canvas === 'undefined') { showToast('Export not available.', 'error'); return; }
     try {
       const canvas = await html2canvas(el, { scale: 2, useCORS: true });
-      const a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
-      a.download = 'roadmap.png';
-      a.click();
+      const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = 'roadmap.png'; a.click();
       showToast('Roadmap exported.', 'success');
     } catch { showToast('Export failed.', 'error'); }
   }
 
-  async function exportPDF() {
-    showToast('PDF export: available after diagram phase.', 'info');
-  }
+  async function exportPDF() { showToast('PDF export available in phase 3.', 'info'); }
 
-  return { saveJSON, loadJSON, exportDiagramPNG, exportRoadmapPNG, exportPDF, validateAndLoadState };
+  return { saveJSON, loadJSON, validateAndLoadState, exportDiagramPNG, exportRoadmapPNG, exportPDF };
 })();
 
 // ================================================================
@@ -3259,334 +3571,231 @@ const ThemeController = (() => {
   function apply() {
     const theme = active();
     const root = document.documentElement;
-    root.style.setProperty('--bg', theme.background);
-    root.style.setProperty('--surface', theme.surface);
-    root.style.setProperty('--node-fill', theme.nodeDefaultColor);
-    root.style.setProperty('--edge-color', theme.edgeColor);
-    root.style.setProperty('--text', theme.textColor);
-    root.style.setProperty('--muted', theme.mutedColor);
-    root.style.setProperty('--accent', theme.accentColor);
-    root.style.setProperty('--border', theme.borderColor);
-    root.style.setProperty('--upgrade-hl', theme.upgradeHighlight);
+    root.style.setProperty('--bg',          theme.background);
+    root.style.setProperty('--surface',     theme.surface);
+    root.style.setProperty('--node-fill',   theme.nodeDefaultColor);
+    root.style.setProperty('--edge-color',  theme.edgeColor);
+    root.style.setProperty('--text',        theme.textColor);
+    root.style.setProperty('--muted',       theme.mutedColor);
+    root.style.setProperty('--accent',      theme.accentColor);
+    root.style.setProperty('--border',      theme.borderColor);
+    root.style.setProperty('--upgrade-hl',  theme.upgradeHighlight);
+    document.body.setAttribute('data-theme', AppState.meta.theme);
 
-    const name = AppState.meta.theme;
-    document.body.setAttribute('data-theme', name);
-
-    // Refresh logo
-    const logoEls = document.querySelectorAll('.logo-display');
-    logoEls.forEach(el => {
-      if (AppState.meta.logoDataUrl) {
-        el.style.backgroundImage = `url(${AppState.meta.logoDataUrl})`;
-        el.style.display = 'block';
-        el.nextElementSibling?.classList.add('hidden');
-      } else {
-        el.style.backgroundImage = '';
-        el.style.display = 'none';
-        el.nextElementSibling?.classList.remove('hidden');
-      }
-    });
+    // Logo
+    const img = document.getElementById('nav-logo-img');
+    const txt = document.querySelector('.nav-logo-text');
+    if (img && txt) {
+      if (AppState.meta.logoDataUrl) { img.src = AppState.meta.logoDataUrl; img.style.display = 'block'; txt.style.display = 'none'; }
+      else { img.style.display = 'none'; txt.style.display = ''; }
+    }
   }
 
-  function setTheme(name) {
-    AppState.meta.theme = name;
-    apply();
-    touchState();
-    AutoSave.schedule();
-  }
+  function setTheme(name) { AppState.meta.theme = name; apply(); touchState(); AutoSave.schedule(); }
+  function resetToDefaults() { AppState.meta.theme = 'light'; AppState.meta.customTheme = { ...PRESET_THEMES.light }; apply(); touchState(); AutoSave.schedule(); }
 
-  function setCustomColor(key, value) {
-    AppState.meta.customTheme[key] = value;
-    if (AppState.meta.theme === 'custom') apply();
-    touchState();
-    AutoSave.schedule();
-  }
-
-  function setSwimlaneColor(category, color) {
-    AppState.meta.customTheme.swimlaneColors[category] = color;
-    for (const t of ['light','dark','highContrast']) PRESET_THEMES[t].swimlaneColors[category] = color;
-    apply();
-    touchState();
-    AutoSave.schedule();
-  }
-
-  function resetToDefaults() {
-    AppState.meta.theme = 'light';
-    AppState.meta.customTheme = { ...PRESET_THEMES.light };
-    apply();
-    touchState();
-    AutoSave.schedule();
-  }
-
-  return { active, apply, setTheme, setCustomColor, setSwimlaneColor, resetToDefaults };
+  return { active, apply, setTheme, resetToDefaults };
 })();
 
 // ================================================================
 // 13. MODAL CONTROLLER
 // ================================================================
 const ModalController = (() => {
-  let activeModal = null;
-  let focusTrap = null;
+  let active = null;
+  let targetEditorCallback = null;
+  let nodeEditorConns = [];
 
   function open(id) {
     const overlay = document.getElementById('modal-overlay');
-    const modal = document.getElementById(id);
+    const modal   = document.getElementById(id);
     if (!overlay || !modal) return;
     overlay.classList.remove('hidden');
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
     modal.classList.remove('hidden');
-    activeModal = id;
-    // Focus first input
-    const first = modal.querySelector('input, select, textarea, button');
-    if (first) setTimeout(() => first.focus(), 50);
+    active = id;
     overlay.onclick = e => { if (e.target === overlay) close(); };
+    const first = modal.querySelector('input:not([type="hidden"]), select, textarea, button:not(.modal-close)');
+    if (first) setTimeout(() => first.focus(), 50);
   }
 
   function close() {
-    const overlay = document.getElementById('modal-overlay');
-    if (overlay) overlay.classList.add('hidden');
+    document.getElementById('modal-overlay')?.classList.add('hidden');
     document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-    activeModal = null;
+    active = null;
   }
 
-  function getActive() { return activeModal; }
+  function getActive() { return active; }
 
-  function confirm(message, onYes, onNo) {
-    const modal = document.getElementById('modal-confirm');
-    if (!modal) { if (window.confirm(message)) onYes(); else onNo?.(); return; }
-    document.getElementById('confirm-message').textContent = message;
-    const btnYes = document.getElementById('confirm-yes');
-    const btnNo = document.getElementById('confirm-no');
-    const yes = () => { close(); btnYes.onclick = null; btnNo.onclick = null; onYes(); };
-    const no  = () => { close(); btnYes.onclick = null; btnNo.onclick = null; onNo?.(); };
-    btnYes.onclick = yes;
-    btnNo.onclick  = no;
+  function confirm(msg, onYes, onNo) {
+    document.getElementById('confirm-message').textContent = msg;
+    const y = document.getElementById('confirm-yes');
+    const n = document.getElementById('confirm-no');
+    const cleanup = () => { y.onclick = null; n.onclick = null; };
+    y.onclick = () => { close(); cleanup(); onYes(); };
+    n.onclick = () => { close(); cleanup(); onNo?.(); };
     open('modal-confirm');
   }
 
-  // ---- Settings Modal ----
+  // ── Settings ─────────────────────────────────────────────
   function openSettings() {
-    populateSettings();
-    open('modal-settings');
-  }
+    // Sync theme option buttons
+    const themeVal = AppState.meta.theme;
+    document.querySelectorAll('.theme-option').forEach(o => {
+      o.classList.toggle('selected', o.dataset.theme === themeVal);
+    });
+    document.getElementById('settings-theme').value = themeVal;
+    document.getElementById('custom-colors-block').style.display = themeVal === 'custom' ? 'block' : 'none';
 
-  function populateSettings() {
     document.getElementById('settings-diagram-title').value = AppState.meta.diagramTitle;
     document.getElementById('settings-roadmap-title').value = AppState.meta.roadmapTitle;
 
-    const themeSelect = document.getElementById('settings-theme');
-    themeSelect.value = AppState.meta.theme;
-    toggleCustomColors(AppState.meta.theme === 'custom');
+    const ct = AppState.meta.customTheme;
+    document.getElementById('custom-bg').value      = ct.background       || '#f8fafc';
+    document.getElementById('custom-surface').value = ct.surface          || '#ffffff';
+    document.getElementById('custom-node').value    = ct.nodeDefaultColor || '#ffffff';
+    document.getElementById('custom-edge').value    = ct.edgeColor        || '#94a3b8';
+    document.getElementById('custom-text').value    = ct.textColor        || '#1e293b';
+    document.getElementById('custom-accent').value  = ct.accentColor      || '#3b82f6';
 
-    // Custom theme fields
-    const theme = AppState.meta.customTheme;
-    document.getElementById('custom-bg').value       = theme.background  || '#f8fafc';
-    document.getElementById('custom-surface').value  = theme.surface     || '#ffffff';
-    document.getElementById('custom-node').value     = theme.nodeDefaultColor || '#ffffff';
-    document.getElementById('custom-edge').value     = theme.edgeColor   || '#94a3b8';
-    document.getElementById('custom-text').value     = theme.textColor   || '#1e293b';
-    document.getElementById('custom-accent').value   = theme.accentColor || '#3b82f6';
+    const lp = document.getElementById('logo-preview');
+    if (AppState.meta.logoDataUrl) { lp.src = AppState.meta.logoDataUrl; lp.style.display = 'block'; }
+    else { lp.src = ''; lp.style.display = 'none'; }
 
-    // Logo preview
-    const preview = document.getElementById('logo-preview');
-    if (AppState.meta.logoDataUrl) {
-      preview.src = AppState.meta.logoDataUrl;
-      preview.style.display = 'block';
-    } else {
-      preview.src = '';
-      preview.style.display = 'none';
-    }
-
-    // Category color swatches
     renderCategorySwatches();
+    open('modal-settings');
   }
 
   function renderCategorySwatches() {
-    const container = document.getElementById('category-swatches');
-    if (!container) return;
-    container.innerHTML = '';
-    if (!AppState.categories.length) {
-      container.innerHTML = '<p class="muted-text">No categories yet. Add nodes to create categories.</p>';
-      return;
-    }
+    const c = document.getElementById('category-swatches');
+    if (!c) return;
+    c.innerHTML = '';
+    if (!AppState.categories.length) { c.innerHTML = '<p class="muted-text">No categories yet.</p>'; return; }
     AppState.categories.forEach(cat => {
       const color = AppState.meta.customTheme.swimlaneColors[cat] || '#94a3b8';
       const row = document.createElement('div');
       row.className = 'swatch-row';
-      row.innerHTML = `
-        <span class="swatch-label">${escapeHtml(cat)}</span>
-        <input type="color" class="color-swatch" value="${color}" data-category="${escapeHtml(cat)}" title="Color for ${escapeHtml(cat)}">
-      `;
+      row.innerHTML = `<span class="swatch-label">${escapeHtml(cat)}</span><input type="color" class="color-swatch" value="${color}" title="${escapeHtml(cat)}">`;
       row.querySelector('input').addEventListener('change', e => {
-        ThemeController.setSwimlaneColor(cat, e.target.value);
+        AppState.meta.customTheme.swimlaneColors[cat] = e.target.value;
+        for (const k of ['light','dark','highContrast']) PRESET_THEMES[k].swimlaneColors[cat] = e.target.value;
+        ThemeController.apply();
+        DiagramViewController.refresh();
+        touchState(); AutoSave.schedule();
       });
-      container.appendChild(row);
+      c.appendChild(row);
     });
-  }
-
-  function toggleCustomColors(show) {
-    const block = document.getElementById('custom-colors-block');
-    if (block) block.style.display = show ? 'block' : 'none';
   }
 
   function bindSettingsEvents() {
-    const themeSelect = document.getElementById('settings-theme');
-    themeSelect.addEventListener('change', e => {
-      toggleCustomColors(e.target.value === 'custom');
+    document.querySelectorAll('.theme-option').forEach(opt => {
+      opt.addEventListener('click', () => {
+        document.querySelectorAll('.theme-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        const val = opt.dataset.theme;
+        document.getElementById('settings-theme').value = val;
+        document.getElementById('custom-colors-block').style.display = val === 'custom' ? 'block' : 'none';
+      });
     });
 
     document.getElementById('settings-logo-upload').addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (file.size > 512 * 1024) { showToast('Logo too large (max 512 KB).', 'error'); return; }
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 512*1024) { showToast('Logo too large (max 512 KB).', 'error'); return; }
       const reader = new FileReader();
       reader.onload = evt => {
         AppState.meta.logoDataUrl = evt.target.result;
-        const preview = document.getElementById('logo-preview');
-        preview.src = evt.target.result;
-        preview.style.display = 'block';
+        const lp = document.getElementById('logo-preview');
+        lp.src = evt.target.result; lp.style.display = 'block';
       };
       reader.readAsDataURL(file);
     });
 
     document.getElementById('settings-logo-remove').addEventListener('click', () => {
       AppState.meta.logoDataUrl = null;
-      document.getElementById('logo-preview').style.display = 'none';
-      document.getElementById('logo-preview').src = '';
+      const lp = document.getElementById('logo-preview'); lp.src = ''; lp.style.display = 'none';
     });
 
     document.getElementById('btn-settings-reset').addEventListener('click', () => {
-      ModalController.confirm('Reset theme to defaults?', () => {
-        ThemeController.resetToDefaults();
-        populateSettings();
-        showToast('Theme reset.', 'success');
-      });
+      confirm('Reset theme to defaults?', () => { ThemeController.resetToDefaults(); openSettings(); showToast('Theme reset.', 'success'); });
     });
 
-    document.getElementById('btn-settings-save').addEventListener('click', saveSettings);
+    document.getElementById('btn-settings-save').addEventListener('click', () => {
+      StateHistory.push();
+      AppState.meta.diagramTitle = document.getElementById('settings-diagram-title').value.trim() || 'Infrastructure Map';
+      AppState.meta.roadmapTitle = document.getElementById('settings-roadmap-title').value.trim() || 'Digital Transformation Roadmap';
+      const nt = document.getElementById('settings-theme').value;
+      if (nt === 'custom') {
+        AppState.meta.customTheme.background       = document.getElementById('custom-bg').value;
+        AppState.meta.customTheme.surface          = document.getElementById('custom-surface').value;
+        AppState.meta.customTheme.nodeDefaultColor = document.getElementById('custom-node').value;
+        AppState.meta.customTheme.edgeColor        = document.getElementById('custom-edge').value;
+        AppState.meta.customTheme.textColor        = document.getElementById('custom-text').value;
+        AppState.meta.customTheme.accentColor      = document.getElementById('custom-accent').value;
+      }
+      ThemeController.setTheme(nt);
+      AppController.updateTitles();
+      DiagramViewController.refresh();
+      touchState(); AutoSave.schedule();
+      close(); showToast('Settings saved.', 'success');
+    });
     document.getElementById('btn-settings-cancel').addEventListener('click', close);
   }
 
-  function saveSettings() {
-    StateHistory.push();
-    AppState.meta.diagramTitle = document.getElementById('settings-diagram-title').value.trim() || 'Infrastructure Map';
-    AppState.meta.roadmapTitle = document.getElementById('settings-roadmap-title').value.trim() || 'Digital Transformation Roadmap';
-    const newTheme = document.getElementById('settings-theme').value;
+  // ── Categories ───────────────────────────────────────────
+  function openManageCategories() { renderCategoryList(); open('modal-categories'); }
 
-    if (newTheme === 'custom') {
-      AppState.meta.customTheme.background    = document.getElementById('custom-bg').value;
-      AppState.meta.customTheme.surface       = document.getElementById('custom-surface').value;
-      AppState.meta.customTheme.nodeDefaultColor = document.getElementById('custom-node').value;
-      AppState.meta.customTheme.edgeColor     = document.getElementById('custom-edge').value;
-      AppState.meta.customTheme.textColor     = document.getElementById('custom-text').value;
-      AppState.meta.customTheme.accentColor   = document.getElementById('custom-accent').value;
-    }
-
-    ThemeController.setTheme(newTheme);
-    AppController.updateTitles();
-    touchState();
-    AutoSave.schedule();
-    close();
-    showToast('Settings saved.', 'success');
-  }
-
-  // ---- Manage Categories Modal ----
-  function openManageCategories() {
-    renderManageCategories();
-    open('modal-categories');
-  }
-
-  function renderManageCategories() {
+  function renderCategoryList() {
     const list = document.getElementById('categories-list');
     if (!list) return;
     list.innerHTML = '';
-    if (!AppState.categories.length) {
-      list.innerHTML = '<p class="muted-text">No categories yet.</p>';
-      return;
-    }
+    if (!AppState.categories.length) { list.innerHTML = '<p class="muted-text">No categories yet.</p>'; return; }
     AppState.categories.forEach(cat => {
-      const row = document.createElement('div');
-      row.className = 'category-row';
-      row.innerHTML = `
-        <input type="text" class="cat-name-input" value="${escapeHtml(cat)}" data-original="${escapeHtml(cat)}">
-        <button class="btn-icon btn-rename-cat" data-cat="${escapeHtml(cat)}" title="Rename">✓</button>
-        <button class="btn-icon btn-delete-cat danger" data-cat="${escapeHtml(cat)}" title="Delete">×</button>
-      `;
+      const row = document.createElement('div'); row.className = 'category-row';
+      row.innerHTML = `<input type="text" class="cat-name-input" value="${escapeHtml(cat)}" data-orig="${escapeHtml(cat)}"><button class="btn-sm btn-rename" data-cat="${escapeHtml(cat)}">&#10003;</button><button class="btn-sm danger btn-del-cat" data-cat="${escapeHtml(cat)}">&#215;</button>`;
       list.appendChild(row);
     });
-    list.querySelectorAll('.btn-rename-cat').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const input = btn.previousElementSibling;
-        const original = input.dataset.original;
-        if (CategoryManager.rename(original, input.value)) {
-          renderManageCategories();
-          DiagramViewController.refresh();
-        }
-      });
-    });
-    list.querySelectorAll('.btn-delete-cat').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cat = btn.dataset.cat;
-        if (CategoryManager.remove(cat)) {
-          renderManageCategories();
-          DiagramViewController.refresh();
-        }
-      });
-    });
+    list.querySelectorAll('.btn-rename').forEach(btn => btn.addEventListener('click', () => {
+      const input = btn.previousElementSibling;
+      if (CategoryManager.rename(input.dataset.orig, input.value)) { renderCategoryList(); DiagramViewController.refresh(); }
+    }));
+    list.querySelectorAll('.btn-del-cat').forEach(btn => btn.addEventListener('click', () => {
+      if (CategoryManager.remove(btn.dataset.cat)) { renderCategoryList(); DiagramViewController.refresh(); }
+    }));
   }
 
   function bindCategoryEvents() {
     document.getElementById('btn-add-category')?.addEventListener('click', () => {
       const input = document.getElementById('new-category-input');
       if (!input?.value.trim()) return;
-      CategoryManager.add(input.value);
-      input.value = '';
-      renderManageCategories();
+      CategoryManager.add(input.value); input.value = ''; renderCategoryList();
+    });
+    document.getElementById('new-category-input')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-add-category')?.click();
     });
     document.getElementById('btn-categories-close')?.addEventListener('click', close);
   }
 
-  // ---- Manage Targets Modal ----
-  function openManageTargets() {
-    renderTargetList();
-    open('modal-targets');
-  }
+  // ── Targets ──────────────────────────────────────────────
+  function openManageTargets() { renderTargetList(); open('modal-targets'); }
 
   function renderTargetList() {
     const tbody = document.getElementById('targets-tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
     if (!AppState.upgradeTargets.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="muted-text" style="padding:1rem">No upgrade targets yet.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="muted-text" style="padding:16px 8px">No upgrade targets yet. Add nodes and assign targets.</td></tr>';
       return;
     }
     AppState.upgradeTargets.forEach(t => {
-      const usingCount = UpgradeTargetManager.nodesUsingTarget(t.id).length;
-      const dur = `${t.estimatedDuration.value} ${t.estimatedDuration.unit}`;
+      const using = UpgradeTargetManager.nodesUsingTarget(t.id).length;
       const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${escapeHtml(t.name)}</td>
-        <td>${escapeHtml(t.category)}</td>
-        <td>${dur}</td>
-        <td>${usingCount}</td>
-        <td>
-          <button class="btn-sm btn-edit-target" data-id="${t.id}">Edit</button>
-          <button class="btn-sm danger btn-delete-target" data-id="${t.id}">Delete</button>
-        </td>
-      `;
+      tr.innerHTML = `<td>${escapeHtml(t.name)}</td><td>${escapeHtml(t.category)}</td><td>${t.estimatedDuration.value} ${t.estimatedDuration.unit}</td><td>${using}</td><td><button class="btn-sm edit-tgt" data-id="${t.id}">Edit</button> <button class="btn-sm danger del-tgt" data-id="${t.id}">Delete</button></td>`;
       tbody.appendChild(tr);
     });
-    tbody.querySelectorAll('.btn-edit-target').forEach(btn => {
-      btn.addEventListener('click', () => openTargetEditor(btn.dataset.id));
-    });
-    tbody.querySelectorAll('.btn-delete-target').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const t = UpgradeTargetManager.getById(btn.dataset.id);
-        ModalController.confirm(`Delete target "${t?.name}"?`, () => {
-          UpgradeTargetManager.remove(btn.dataset.id);
-          renderTargetList();
-        });
-      });
-    });
+    tbody.querySelectorAll('.edit-tgt').forEach(btn => btn.addEventListener('click', () => openTargetEditor(btn.dataset.id)));
+    tbody.querySelectorAll('.del-tgt').forEach(btn => btn.addEventListener('click', () => {
+      const t = UpgradeTargetManager.getById(btn.dataset.id);
+      confirm(`Delete target "${t?.name}"?`, () => { UpgradeTargetManager.remove(btn.dataset.id); renderTargetList(); DiagramViewController.refresh(); });
+    }));
   }
 
   function bindTargetListEvents() {
@@ -3594,64 +3803,48 @@ const ModalController = (() => {
     document.getElementById('btn-targets-close')?.addEventListener('click', close);
   }
 
-  // ---- Target Editor Modal ----
-  let targetEditorCallback = null;
-
+  // ── Target Editor ────────────────────────────────────────
   function openTargetEditor(targetId, callback) {
     targetEditorCallback = callback || null;
-    const target = targetId ? UpgradeTargetManager.getById(targetId) : null;
-    document.getElementById('target-editor-title').textContent = target ? 'Edit Upgrade Target' : 'Add Upgrade Target';
+    const t = targetId ? UpgradeTargetManager.getById(targetId) : null;
+    document.getElementById('target-editor-title').textContent = t ? 'Edit Upgrade Target' : 'Add Upgrade Target';
     document.getElementById('target-id-hidden').value = targetId || '';
-    document.getElementById('target-name').value = target?.name || '';
-    populateCategoryDropdown('target-category', target?.category || '');
-    document.getElementById('target-duration-value').value = target?.estimatedDuration?.value || 3;
-    document.getElementById('target-duration-unit').value  = target?.estimatedDuration?.unit  || 'months';
+    document.getElementById('target-name').value = t?.name || '';
+    populateCategoryDropdown('target-category', t?.category || '');
+    document.getElementById('target-duration-value').value = t?.estimatedDuration?.value || 3;
+    document.getElementById('target-duration-unit').value  = t?.estimatedDuration?.unit  || 'months';
     updateDurationHint();
     open('modal-target-editor');
   }
 
   function updateDurationHint() {
-    const val  = parseFloat(document.getElementById('target-duration-value')?.value) || 0;
-    const unit = document.getElementById('target-duration-unit')?.value || 'months';
-    const days = UpgradeTargetManager.durationToDays(val, unit);
+    const v = parseFloat(document.getElementById('target-duration-value')?.value) || 0;
+    const u = document.getElementById('target-duration-unit')?.value || 'months';
     const hint = document.getElementById('duration-hint');
-    if (hint) hint.textContent = `≈ ${days} days`;
+    if (hint) hint.textContent = `≈ ${UpgradeTargetManager.durationToDays(v, u)} days`;
   }
 
   function bindTargetEditorEvents() {
     document.getElementById('target-duration-value')?.addEventListener('input', updateDurationHint);
     document.getElementById('target-duration-unit')?.addEventListener('change', updateDurationHint);
-
     document.getElementById('btn-target-save')?.addEventListener('click', () => {
       const id = document.getElementById('target-id-hidden').value;
-      const data = {
-        name: document.getElementById('target-name').value,
-        category: document.getElementById('target-category').value,
-        estimatedDuration: {
-          value: parseFloat(document.getElementById('target-duration-value').value) || 1,
-          unit: document.getElementById('target-duration-unit').value
-        }
-      };
+      const data = { name: document.getElementById('target-name').value, category: document.getElementById('target-category').value, estimatedDuration: { value: parseFloat(document.getElementById('target-duration-value').value) || 1, unit: document.getElementById('target-duration-unit').value } };
       let result;
-      if (id) {
-        UpgradeTargetManager.update(id, data);
-        result = UpgradeTargetManager.getById(id);
-      } else {
-        result = UpgradeTargetManager.add(data);
-      }
+      if (id) { UpgradeTargetManager.update(id, data); result = UpgradeTargetManager.getById(id); }
+      else result = UpgradeTargetManager.add(data);
       if (result) {
         renderTargetList();
-        if (targetEditorCallback) { targetEditorCallback(result); targetEditorCallback = null; }
-        close();
+        if (targetEditorCallback) { const cb = targetEditorCallback; targetEditorCallback = null; cb(result); }
+        else close();
+        DiagramViewController.refresh();
         showToast(id ? 'Target updated.' : 'Target added.', 'success');
       }
     });
     document.getElementById('btn-target-cancel')?.addEventListener('click', close);
   }
 
-  // ---- Node Editor Modal ----
-  let nodeEditorConnections = [];
-
+  // ── Node Editor ──────────────────────────────────────────
   function openNodeEditor(nodeId) {
     const node = nodeId ? NodeManager.getById(nodeId) : null;
     document.getElementById('node-editor-title').textContent = node ? 'Edit Node' : 'Add Node';
@@ -3660,31 +3853,27 @@ const ModalController = (() => {
     populateCategoryDropdown('node-category', node?.category || '');
     populateTargetDropdown('node-upgrade-target', node?.upgradeTargetId || '');
 
-    // Icon preview
-    const iconPreview = document.getElementById('node-icon-preview');
-    if (node?.iconDataUrl) {
-      iconPreview.src = node.iconDataUrl;
-      iconPreview.style.display = 'block';
-    } else {
-      iconPreview.style.display = 'none';
-    }
+    const iconPrev = document.getElementById('node-icon-preview');
+    iconPrev.dataset.pending = '';
+    if (node?.iconDataUrl) { iconPrev.src = node.iconDataUrl; iconPrev.style.display = 'block'; }
+    else { iconPrev.src = ''; iconPrev.style.display = 'none'; }
 
-    // Load existing connections
-    nodeEditorConnections = [];
+    // Load connections
+    nodeEditorConns = [];
     if (nodeId) {
-      EdgeManager.getAll().forEach(edge => {
+      AppState.edges.forEach(edge => {
         if (edge.sourceNodeId === nodeId) {
-          nodeEditorConnections.push({ id: edge.id, isNew: false, direction: edge.direction, otherNodeId: edge.targetNodeId, label: edge.label });
+          nodeEditorConns.push({ id: edge.id, isNew: false, direction: edge.direction, otherNodeId: edge.targetNodeId, label: edge.label, flipped: false });
         } else if (edge.targetNodeId === nodeId) {
           const flipped = edge.direction === 'out' ? 'in' : edge.direction === 'in' ? 'out' : 'both';
-          nodeEditorConnections.push({ id: edge.id, isNew: false, direction: flipped, otherNodeId: edge.sourceNodeId, label: edge.label, flipped: true });
+          nodeEditorConns.push({ id: edge.id, isNew: false, direction: flipped, otherNodeId: edge.sourceNodeId, label: edge.label, flipped: true });
         }
       });
     }
     renderConnectionRows(nodeId);
 
-    const deleteBtn = document.getElementById('btn-node-delete');
-    if (deleteBtn) deleteBtn.style.display = nodeId ? 'block' : 'none';
+    const delBtn = document.getElementById('btn-node-delete');
+    if (delBtn) delBtn.style.display = nodeId ? 'block' : 'none';
 
     open('modal-node-editor');
   }
@@ -3693,53 +3882,37 @@ const ModalController = (() => {
     const container = document.getElementById('connections-list');
     if (!container) return;
     container.innerHTML = '';
-    const otherNodes = AppState.nodes.filter(n => n.id !== currentNodeId);
-
-    nodeEditorConnections.forEach((conn, idx) => {
+    const others = AppState.nodes.filter(n => n.id !== currentNodeId);
+    nodeEditorConns.forEach((conn, idx) => {
       const row = document.createElement('div');
       row.className = 'connection-row';
-      const nodeOptions = otherNodes.map(n =>
-        `<option value="${n.id}" ${conn.otherNodeId === n.id ? 'selected' : ''}>${escapeHtml(n.name)} (${escapeHtml(n.category)})</option>`
-      ).join('');
+      const opts = others.map(n => `<option value="${n.id}" ${conn.otherNodeId === n.id ? 'selected' : ''}>${escapeHtml(n.name)} (${escapeHtml(n.category)})</option>`).join('');
       row.innerHTML = `
-        <select class="conn-direction" data-idx="${idx}">
-          <option value="out"  ${conn.direction === 'out'  ? 'selected' : ''}>→ Out</option>
-          <option value="in"   ${conn.direction === 'in'   ? 'selected' : ''}>← In</option>
-          <option value="both" ${conn.direction === 'both' ? 'selected' : ''}>↔ Both</option>
+        <select class="conn-dir" data-idx="${idx}">
+          <option value="out"  ${conn.direction==='out'  ?'selected':''}>→ Out</option>
+          <option value="in"   ${conn.direction==='in'   ?'selected':''}>← In</option>
+          <option value="both" ${conn.direction==='both' ?'selected':''}>↔ Both</option>
         </select>
-        <select class="conn-node" data-idx="${idx}">
-          <option value="">-- Select node --</option>
-          ${nodeOptions}
-        </select>
-        <input type="text" class="conn-label" data-idx="${idx}" placeholder="Label (optional)" value="${escapeHtml(conn.label || '')}">
-        <button class="btn-icon danger conn-remove" data-idx="${idx}" title="Remove">×</button>
+        <select class="conn-node" data-idx="${idx}"><option value="">-- Select node --</option>${opts}</select>
+        <input type="text" class="conn-label" data-idx="${idx}" placeholder="Label (optional)" value="${escapeHtml(conn.label||'')}">
+        <button class="btn-icon danger conn-rm" data-idx="${idx}" title="Remove">&#215;</button>
       `;
       container.appendChild(row);
     });
-
-    container.querySelectorAll('.conn-direction').forEach(sel => {
-      sel.addEventListener('change', e => { nodeEditorConnections[+e.target.dataset.idx].direction = e.target.value; });
-    });
-    container.querySelectorAll('.conn-node').forEach(sel => {
-      sel.addEventListener('change', e => { nodeEditorConnections[+e.target.dataset.idx].otherNodeId = e.target.value; });
-    });
-    container.querySelectorAll('.conn-label').forEach(inp => {
-      inp.addEventListener('input', e => { nodeEditorConnections[+e.target.dataset.idx].label = e.target.value; });
-    });
-    container.querySelectorAll('.conn-remove').forEach(btn => {
-      btn.addEventListener('click', e => {
-        const idx = +e.target.dataset.idx;
-        nodeEditorConnections.splice(idx, 1);
-        renderConnectionRows(currentNodeId);
-      });
-    });
+    container.querySelectorAll('.conn-dir').forEach(s => s.addEventListener('change', e => { nodeEditorConns[+e.target.dataset.idx].direction = e.target.value; }));
+    container.querySelectorAll('.conn-node').forEach(s => s.addEventListener('change', e => { nodeEditorConns[+e.target.dataset.idx].otherNodeId = e.target.value; }));
+    container.querySelectorAll('.conn-label').forEach(i => i.addEventListener('input', e => { nodeEditorConns[+e.target.dataset.idx].label = e.target.value; }));
+    container.querySelectorAll('.conn-rm').forEach(btn => btn.addEventListener('click', e => {
+      nodeEditorConns.splice(+e.target.dataset.idx, 1);
+      renderConnectionRows(currentNodeId);
+    }));
   }
 
   function bindNodeEditorEvents() {
     document.getElementById('btn-add-connection')?.addEventListener('click', () => {
-      const nodeId = document.getElementById('node-id-hidden').value;
-      nodeEditorConnections.push({ isNew: true, direction: 'out', otherNodeId: '', label: '' });
-      renderConnectionRows(nodeId || null);
+      const nodeId = document.getElementById('node-id-hidden').value || null;
+      nodeEditorConns.push({ isNew: true, direction: 'out', otherNodeId: '', label: '' });
+      renderConnectionRows(nodeId);
     });
 
     document.getElementById('btn-create-target-inline')?.addEventListener('click', () => {
@@ -3750,39 +3923,27 @@ const ModalController = (() => {
     });
 
     document.getElementById('node-icon-upload')?.addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (file.size > 64 * 1024) { showToast('Icon too large (max 64 KB).', 'error'); return; }
+      const file = e.target.files[0]; if (!file) return;
+      if (file.size > 64*1024) { showToast('Icon too large (max 64 KB).', 'error'); return; }
       const reader = new FileReader();
       reader.onload = evt => {
-        const preview = document.getElementById('node-icon-preview');
-        preview.src = evt.target.result;
-        preview.style.display = 'block';
-        preview.dataset.pending = evt.target.result;
+        const prev = document.getElementById('node-icon-preview');
+        prev.src = evt.target.result; prev.style.display = 'block'; prev.dataset.pending = evt.target.result;
       };
       reader.readAsDataURL(file);
     });
 
     document.getElementById('node-icon-remove')?.addEventListener('click', () => {
-      const preview = document.getElementById('node-icon-preview');
-      preview.style.display = 'none';
-      preview.src = '';
-      preview.dataset.pending = '';
+      const prev = document.getElementById('node-icon-preview');
+      prev.src = ''; prev.style.display = 'none'; prev.dataset.pending = '__removed__';
     });
 
     document.getElementById('btn-node-delete')?.addEventListener('click', () => {
       const nodeId = document.getElementById('node-id-hidden').value;
       const node = NodeManager.getById(nodeId);
-      const edgeCount = EdgeManager.edgesForNode(nodeId).length;
-      const msg = edgeCount
-        ? `Delete "${node?.name}"? This will also remove ${edgeCount} connection(s).`
-        : `Delete "${node?.name}"?`;
-      ModalController.confirm(msg, () => {
-        NodeManager.remove(nodeId);
-        DiagramViewController.refresh();
-        GanttViewController.refresh();
-        close();
-        showToast('Node deleted.', 'success');
+      const ec = EdgeManager.edgesForNode(nodeId).length;
+      confirm(`Delete "${node?.name}"?${ec ? ` This will also remove ${ec} connection(s).` : ''}`, () => {
+        NodeManager.remove(nodeId); close(); DiagramViewController.refresh(); GanttViewController.refresh(); showToast('Node deleted.', 'success');
       });
     });
 
@@ -3792,47 +3953,36 @@ const ModalController = (() => {
 
   function saveNodeEditor() {
     const nodeId = document.getElementById('node-id-hidden').value;
-    const iconPreview = document.getElementById('node-icon-preview');
-    const iconDataUrl = iconPreview?.dataset.pending || (iconPreview?.style.display !== 'none' ? iconPreview?.src : null);
+    const prev = document.getElementById('node-icon-preview');
+    const pending = prev?.dataset.pending;
+    let iconDataUrl;
+    if (pending === '__removed__') iconDataUrl = null;
+    else if (pending) iconDataUrl = pending;
+    else iconDataUrl = undefined; // keep existing
+
+    if (!document.getElementById('node-name').value.trim()) { showToast('Name is required.', 'error'); return; }
+    if (!document.getElementById('node-category').value)    { showToast('Category is required.', 'error'); return; }
+
     const data = {
       name: document.getElementById('node-name').value,
       category: document.getElementById('node-category').value,
       upgradeTargetId: document.getElementById('node-upgrade-target').value || null,
-      iconDataUrl: iconDataUrl || null
+      iconDataUrl
     };
 
     let savedNodeId = nodeId;
-    if (nodeId) {
-      NodeManager.update(nodeId, data);
-    } else {
-      const newNode = NodeManager.add(data);
-      if (!newNode) { showToast('Name and category are required.', 'error'); return; }
-      savedNodeId = newNode.id;
-    }
+    if (nodeId) { NodeManager.update(nodeId, data); }
+    else { const n = NodeManager.add(data); if (!n) return; savedNodeId = n.id; }
 
     // Sync connections
-    const existingEdgeIds = EdgeManager.edgesForNode(savedNodeId).map(e => e.id);
-    const keepEdgeIds = nodeEditorConnections.filter(c => !c.isNew && c.id).map(c => c.id);
-    // Remove deleted edges
-    existingEdgeIds.forEach(eid => {
-      if (!keepEdgeIds.includes(eid)) EdgeManager.remove(eid);
-    });
-    // Update existing + add new
-    nodeEditorConnections.forEach(conn => {
+    const existingIds = EdgeManager.edgesForNode(savedNodeId).map(e => e.id);
+    const keepIds = nodeEditorConns.filter(c => !c.isNew && c.id).map(c => c.id);
+    existingIds.forEach(eid => { if (!keepIds.includes(eid)) EdgeManager.remove(eid); });
+    nodeEditorConns.forEach(conn => {
       if (!conn.otherNodeId) return;
-      if (conn.isNew) {
-        const dir = conn.flipped
-          ? (conn.direction === 'out' ? 'in' : conn.direction === 'in' ? 'out' : 'both')
-          : conn.direction;
-        EdgeManager.add({ sourceNodeId: savedNodeId, targetNodeId: conn.otherNodeId, direction: dir, label: conn.label });
-      } else if (conn.id) {
-        const edge = EdgeManager.getById(conn.id);
-        if (!edge) return;
-        const dir = conn.flipped
-          ? (conn.direction === 'out' ? 'in' : conn.direction === 'in' ? 'out' : 'both')
-          : conn.direction;
-        EdgeManager.update(conn.id, { direction: dir, label: conn.label });
-      }
+      const dir = conn.flipped ? (conn.direction === 'out' ? 'in' : conn.direction === 'in' ? 'out' : 'both') : conn.direction;
+      if (conn.isNew) EdgeManager.add({ sourceNodeId: savedNodeId, targetNodeId: conn.otherNodeId, direction: dir, label: conn.label });
+      else if (conn.id) EdgeManager.update(conn.id, { direction: dir, label: conn.label });
     });
 
     DiagramViewController.refresh();
@@ -3841,32 +3991,22 @@ const ModalController = (() => {
     showToast(nodeId ? 'Node updated.' : 'Node added.', 'success');
   }
 
-  // ---- Helpers ----
-  function populateCategoryDropdown(selectId, selectedValue) {
+  // ── Helpers ──────────────────────────────────────────────
+  function populateCategoryDropdown(selectId, selected) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
     sel.innerHTML = '<option value="">-- Select category --</option>';
     AppState.categories.forEach(cat => {
       const opt = document.createElement('option');
-      opt.value = cat;
-      opt.textContent = cat;
-      if (cat === selectedValue) opt.selected = true;
+      opt.value = cat; opt.textContent = cat; if (cat === selected) opt.selected = true;
       sel.appendChild(opt);
     });
-    const addOpt = document.createElement('option');
-    addOpt.value = '__add__';
-    addOpt.textContent = '＋ Add new category…';
-    sel.appendChild(addOpt);
+    const add = document.createElement('option'); add.value = '__add__'; add.textContent = '＋ Add new category…'; sel.appendChild(add);
     sel.onchange = e => {
       if (e.target.value === '__add__') {
         const name = prompt('New category name:');
-        if (name?.trim()) {
-          CategoryManager.add(name.trim());
-          populateCategoryDropdown(selectId, name.trim());
-          sel.value = name.trim();
-        } else {
-          sel.value = selectedValue || '';
-        }
+        if (name?.trim()) { CategoryManager.add(name.trim()); populateCategoryDropdown(selectId, name.trim()); sel.value = name.trim(); }
+        else sel.value = selected || '';
       }
     };
   }
@@ -3877,15 +4017,9 @@ const ModalController = (() => {
     sel.innerHTML = '<option value="">-- None --</option>';
     AppState.upgradeTargets.forEach(t => {
       const opt = document.createElement('option');
-      opt.value = t.id;
-      opt.textContent = `${t.name} (${t.category})`;
-      if (t.id === selectedId) opt.selected = true;
+      opt.value = t.id; opt.textContent = `${t.name} (${t.category})`; if (t.id === selectedId) opt.selected = true;
       sel.appendChild(opt);
     });
-  }
-
-  function escapeHtml(str) {
-    return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function init() {
@@ -3906,9 +4040,7 @@ const ModalController = (() => {
 const AutoSave = (() => {
   const KEY = 'infra-mapper-autosave';
   const scheduled = debounce(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ state: AppState, ts: new Date().toISOString() }));
-    } catch { /* quota */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ state: AppState, ts: new Date().toISOString() })); } catch {}
   }, 2000);
 
   function schedule() { scheduled(); }
@@ -3919,19 +4051,15 @@ const AutoSave = (() => {
       if (!raw) return;
       const { state, ts } = JSON.parse(raw);
       if (!state) return;
-      const d = new Date(ts);
-      const label = d.toLocaleString();
       ModalController.confirm(
-        `Restore unsaved session from ${label}?`,
+        `Restore unsaved session from ${new Date(ts).toLocaleString()}?`,
         () => { ExportController.validateAndLoadState(state); showToast('Session restored.', 'success'); },
         () => { localStorage.removeItem(KEY); }
       );
-    } catch { /* ignore */ }
+    } catch {}
   }
 
-  function clear() { localStorage.removeItem(KEY); }
-
-  return { schedule, checkRestore, clear };
+  return { schedule, checkRestore };
 })();
 
 // ================================================================
@@ -3944,6 +4072,7 @@ const AppController = (() => {
     ThemeController.apply();
     ModalController.init();
     DiagramViewController.init();
+    DiagramViewController.bindContextMenu();
     GanttViewController.init();
     updateTitles();
     updateUndoRedoUI();
@@ -3965,62 +4094,75 @@ const AppController = (() => {
   function refreshAll() {
     updateTitles();
     DiagramViewController.refresh();
+    DiagramViewController.buildCategoryChips();
     GanttViewController.refresh();
     updateUndoRedoUI();
   }
 
   function updateTitles() {
-    const diagramTitle = document.getElementById('nav-diagram-title');
-    const logoEls = document.querySelectorAll('.nav-logo-text');
-    logoEls.forEach(el => el.textContent = 'InfraMapper');
-    if (diagramTitle) diagramTitle.textContent = AppState.meta.diagramTitle;
+    document.querySelector('.nav-logo-text').textContent = 'InfraMapper';
     ThemeController.apply();
   }
 
   function bindGlobalEvents() {
     // View switcher
-    document.querySelectorAll('.view-btn').forEach(btn => {
-      btn.addEventListener('click', () => switchView(btn.dataset.view));
-    });
+    document.querySelectorAll('.view-btn').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 
-    // Nav buttons
+    // Nav
     document.getElementById('btn-save')?.addEventListener('click', ExportController.saveJSON);
     document.getElementById('btn-load')?.addEventListener('click', ExportController.loadJSON);
     document.getElementById('btn-settings')?.addEventListener('click', ModalController.openSettings);
-    document.getElementById('btn-export')?.addEventListener('click', () => {
-      const menu = document.getElementById('export-menu');
-      if (menu) menu.classList.toggle('hidden');
-    });
+    document.getElementById('btn-undo')?.addEventListener('click', StateHistory.undo);
+    document.getElementById('btn-redo')?.addEventListener('click', StateHistory.redo);
+
+    // Export menu
+    document.getElementById('btn-export')?.addEventListener('click', () => document.getElementById('export-menu')?.classList.toggle('hidden'));
     document.getElementById('btn-export-diagram-png')?.addEventListener('click', () => { ExportController.exportDiagramPNG(); document.getElementById('export-menu')?.classList.add('hidden'); });
     document.getElementById('btn-export-roadmap-png')?.addEventListener('click', () => { ExportController.exportRoadmapPNG(); document.getElementById('export-menu')?.classList.add('hidden'); });
     document.getElementById('btn-export-pdf')?.addEventListener('click', () => { ExportController.exportPDF(); document.getElementById('export-menu')?.classList.add('hidden'); });
+    document.addEventListener('click', e => { if (!e.target.closest('.export-wrapper')) document.getElementById('export-menu')?.classList.add('hidden'); });
 
     // Diagram toolbar
     document.getElementById('btn-add-node')?.addEventListener('click', () => ModalController.openNodeEditor(null));
+    document.getElementById('btn-auto-layout')?.addEventListener('click', () => DiagramViewController.runAutoLayout());
+    document.getElementById('btn-toggle-state')?.addEventListener('click', () => {
+      const next = DiagramViewController.getMode() === 'current' ? 'future' : 'current';
+      DiagramViewController.setMode(next);
+    });
+    document.getElementById('btn-back-to-current')?.addEventListener('click', () => DiagramViewController.setMode('current'));
+    document.getElementById('btn-zoom-in')?.addEventListener('click', () => DiagramViewController.zoomIn());
+    document.getElementById('btn-zoom-out')?.addEventListener('click', () => DiagramViewController.zoomOut());
+    document.getElementById('btn-fit')?.addEventListener('click', () => DiagramViewController.fit());
     document.getElementById('btn-manage-targets')?.addEventListener('click', ModalController.openManageTargets);
     document.getElementById('btn-manage-categories')?.addEventListener('click', ModalController.openManageCategories);
-    document.getElementById('btn-undo')?.addEventListener('click', StateHistory.undo);
-    document.getElementById('btn-redo')?.addEventListener('click', StateHistory.redo);
+    document.getElementById('btn-export-diagram-img')?.addEventListener('click', ExportController.exportDiagramPNG);
+
+    // Search
+    const searchInput = document.getElementById('diagram-search');
+    searchInput?.addEventListener('input', e => DiagramViewController.setSearch(e.target.value));
+    searchInput?.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; DiagramViewController.setSearch(''); } });
+
+    // Category filter bar toggle
+    document.getElementById('btn-filter-cats')?.addEventListener('click', () => {
+      const bar = document.getElementById('category-filter-bar');
+      if (!bar) return;
+      const visible = bar.classList.toggle('visible');
+      if (visible) DiagramViewController.buildCategoryChips();
+    });
 
     // Roadmap toolbar
     document.getElementById('btn-auto-phase')?.addEventListener('click', () => {
       ModalController.confirm('Re-run auto-phasing? This will reset all manual Gantt adjustments.', () => {
-        AutoPhasingEngine.run();
-        GanttViewController.refresh();
-        showToast('Auto-phasing complete.', 'success');
+        AutoPhasingEngine.run(); GanttViewController.refresh(); showToast('Auto-phasing complete.', 'success');
       });
     });
 
-    // Close export menu on outside click
-    document.addEventListener('click', e => {
-      const menu = document.getElementById('export-menu');
-      const btn = document.getElementById('btn-export');
-      if (menu && !menu.contains(e.target) && e.target !== btn) menu.classList.add('hidden');
-    });
-
-    // Escape closes modal
+    // Escape
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && ModalController.getActive()) ModalController.close();
+      if (e.key === 'Escape') {
+        DiagramViewController.hideContextMenu();
+        if (ModalController.getActive()) ModalController.close();
+      }
     });
   }
 
@@ -4029,21 +4171,22 @@ const AppController = (() => {
       const ctrl = e.ctrlKey || e.metaKey;
       const inInput = ['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);
       if (inInput && !ctrl) return;
-
-      if (ctrl && e.key === 's') { e.preventDefault(); ExportController.saveJSON(); }
-      if (ctrl && e.key === 'o') { e.preventDefault(); ExportController.loadJSON(); }
-      if (ctrl && e.key === 'z' && !e.shiftKey) { e.preventDefault(); StateHistory.undo(); }
-      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); StateHistory.redo(); }
-      if (ctrl && e.key === 'n') { e.preventDefault(); ModalController.openNodeEditor(null); }
-      if (e.key === 'Tab' && !ctrl && !inInput) { e.preventDefault(); switchView(activeView === 'diagram' ? 'roadmap' : 'diagram'); }
-      if (ctrl && e.shiftKey && e.key === 'E') { e.preventDefault(); if (activeView === 'diagram') ExportController.exportDiagramPNG(); else ExportController.exportRoadmapPNG(); }
+      if (ctrl && e.key === 's')                         { e.preventDefault(); ExportController.saveJSON(); }
+      if (ctrl && e.key === 'o')                         { e.preventDefault(); ExportController.loadJSON(); }
+      if (ctrl && !e.shiftKey && e.key === 'z')          { e.preventDefault(); StateHistory.undo(); }
+      if (ctrl && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); StateHistory.redo(); }
+      if (ctrl && e.key === 'n')                         { e.preventDefault(); ModalController.openNodeEditor(null); }
+      if (ctrl && e.key === 'f')                         { e.preventDefault(); DiagramViewController.fit(); }
+      if (ctrl && e.shiftKey && e.key === 'E')           { e.preventDefault(); if (activeView==='diagram') ExportController.exportDiagramPNG(); else ExportController.exportRoadmapPNG(); }
+      if (!inInput && e.key === 'Tab')                   { e.preventDefault(); switchView(activeView === 'diagram' ? 'roadmap' : 'diagram'); }
+      if (!inInput && e.key === '+')                     { DiagramViewController.zoomIn(); }
+      if (!inInput && e.key === '-')                     { DiagramViewController.zoomOut(); }
     });
   }
 
   return { init, switchView, refreshAll, updateTitles };
 })();
 
-// Boot
 document.addEventListener('DOMContentLoaded', () => AppController.init());
 
 // ── Theme option click wiring ──────────────────────────────────
