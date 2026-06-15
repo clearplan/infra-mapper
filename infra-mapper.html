@@ -430,6 +430,7 @@
         <div class="duration-row">
           <input type="number" id="target-duration-value" min="1" step="1" value="3">
           <select id="target-duration-unit">
+            <option value="days">Days</option>
             <option value="weeks">Weeks</option>
             <option value="months" selected>Months</option>
             <option value="years">Years</option>
@@ -496,6 +497,26 @@
     <div class="modal-footer">
       <button id="confirm-no" class="btn-secondary">Cancel</button>
       <button id="confirm-yes" class="btn-primary">Confirm</button>
+    </div>
+  </div>
+
+  <!-- Gantt Bar Edit -->
+  <div id="modal-gantt-edit" class="modal modal-sm hidden">
+    <div class="modal-header"><h2>Edit Task</h2><button class="modal-close">&times;</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="gantt-edit-id">
+      <div class="form-group"><label>Name <span style="color:#ef4444">*</span></label><input type="text" id="gantt-edit-name" placeholder="Task name"></div>
+      <div class="form-group">
+        <label>Duration (days) <span style="color:#ef4444">*</span></label>
+        <div class="duration-row">
+          <input type="number" id="gantt-edit-days" min="1" step="1" value="30" style="width:90px">
+          <span class="duration-hint" id="gantt-edit-hint"></span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button id="btn-gantt-edit-cancel" class="btn-secondary">Cancel</button>
+      <button id="btn-gantt-edit-save" class="btn-primary">Save</button>
     </div>
   </div>
 
@@ -2755,6 +2776,7 @@ const CategoryManager = (() => {
 // ================================================================
 const UpgradeTargetManager = (() => {
   function durationToDays(value, unit) {
+    if (unit === 'days')   return Math.round(value);
     if (unit === 'weeks')  return Math.round(value * 7);
     if (unit === 'months') return Math.round(value * 30);
     if (unit === 'years')  return Math.round(value * 365);
@@ -3733,7 +3755,7 @@ const GanttViewController = (() => {
           `<span style="font-size:12px;color:${muted};opacity:.35;cursor:grab;flex-shrink:0;margin-right:2px;line-height:1;user-select:none">⠿</span>` +
           `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:8px;">${escapeHtml(t.name)}</span>`;
         div.addEventListener('click',    () => selectTarget(t.id));
-        div.addEventListener('dblclick', () => ModalController.openTargetEditor(t.id));
+        div.addEventListener('dblclick', () => ModalController.openGanttEdit(t.id));
         div.draggable = true;
         div.addEventListener('dragstart', e => {
           dragSrc = { type: 'task', taskId: t.id, taskCat: t.category };
@@ -4016,6 +4038,9 @@ const GanttViewController = (() => {
     document.removeEventListener('mousemove', onDocMove);
     document.removeEventListener('mouseup',   onDocUp);
     if (dragState) {
+      // Keep estimatedDuration in sync with whatever the bar was dragged to
+      const target = AppState.upgradeTargets.find(t => t.id === dragState.targetId);
+      if (target) target.estimatedDuration = { value: target.gantt.durationDays, unit: 'days' };
       StateHistory.push();
       touchState(); AutoSave.schedule();
       dragState = null;
@@ -4032,7 +4057,7 @@ const GanttViewController = (() => {
 
   function onCanvasDblClick(e) {
     const hit = hitTest(e);
-    if (hit) ModalController.openTargetEditor(hit.targetId);
+    if (hit) ModalController.openGanttEdit(hit.targetId);
   }
 
   function selectTarget(id) {
@@ -4693,6 +4718,44 @@ const ModalController = (() => {
     }));
   }
 
+  // ── Gantt Bar Edit ───────────────────────────────────────
+  function openGanttEdit(targetId) {
+    const t = UpgradeTargetManager.getById(targetId);
+    if (!t) return;
+    document.getElementById('gantt-edit-id').value = targetId;
+    document.getElementById('gantt-edit-name').value = t.name;
+    document.getElementById('gantt-edit-days').value = t.gantt?.durationDays
+      || UpgradeTargetManager.durationToDays(t.estimatedDuration.value, t.estimatedDuration.unit);
+    updateGanttEditHint();
+    open('modal-gantt-edit');
+  }
+
+  function updateGanttEditHint() {
+    const days = parseInt(document.getElementById('gantt-edit-days')?.value) || 0;
+    const hint = document.getElementById('gantt-edit-hint');
+    if (!hint) return;
+    if (days <= 0) { hint.textContent = ''; return; }
+    const wk = (days / 7).toFixed(1), mo = (days / 30).toFixed(1);
+    hint.textContent = `≈ ${wk}w / ${mo}mo`;
+  }
+
+  function bindGanttEditEvents() {
+    document.getElementById('gantt-edit-days')?.addEventListener('input', updateGanttEditHint);
+    document.getElementById('btn-gantt-edit-save')?.addEventListener('click', () => {
+      const id   = document.getElementById('gantt-edit-id').value;
+      const name = document.getElementById('gantt-edit-name').value.trim();
+      const days = Math.max(1, parseInt(document.getElementById('gantt-edit-days').value) || 1);
+      const t = UpgradeTargetManager.getById(id);
+      if (!t || !name) return;
+      UpgradeTargetManager.update(id, { name, category: t.category, estimatedDuration: { value: days, unit: 'days' } });
+      close();
+      GanttViewController.refresh();
+      DiagramViewController.refresh();
+      showToast('Task updated.', 'success');
+    });
+    document.getElementById('btn-gantt-edit-cancel')?.addEventListener('click', close);
+  }
+
   function bindNodeEditorEvents() {
     document.getElementById('btn-add-connection')?.addEventListener('click', () => {
       const nodeId = document.getElementById('node-id-hidden').value || null;
@@ -4894,13 +4957,14 @@ const ModalController = (() => {
     bindCategoryEvents();
     bindTargetListEvents();
     bindTargetEditorEvents();
+    bindGanttEditEvents();
     bindNodeEditorEvents();
     bindAddConnectionEvents();
     bindSetTargetEvents();
     document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', close));
   }
 
-  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openNodeEditor, openAddConnection, openSetTarget, init };
+  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openGanttEdit, openNodeEditor, openAddConnection, openSetTarget, init };
 })();
 
 // ================================================================
