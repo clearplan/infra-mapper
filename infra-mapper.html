@@ -254,7 +254,6 @@
       <span class="toolbar-sep"></span>
       <input id="diagram-search" type="text" placeholder="Search...">
       <button id="btn-filter-cats" class="btn-toolbar btn-toolbar-icon" title="Filter by category">&#9776;</button>
-      <button id="btn-export-diagram-img" class="btn-toolbar btn-toolbar-icon" title="Export diagram PNG">&#128247;</button>
     </div>
     <div id="future-state-banner">
       <strong>Future State (read-only)</strong>
@@ -289,7 +288,6 @@
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
         <input type="checkbox" id="toggle-auto-fit"> Auto-fit
       </label>
-      <span id="roadmap-title-display" style="flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--text);opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 16px;pointer-events:none;"></span>
       <label style="font-size:12px;display:flex;align-items:center;gap:5px;flex-shrink:0">
         Start:
         <input type="date" id="gantt-start-date">
@@ -333,14 +331,6 @@
   <div id="modal-settings" class="modal hidden">
     <div class="modal-header"><h2>Settings</h2><button class="modal-close">&times;</button></div>
     <div class="modal-body">
-      <div class="form-group">
-        <label>Diagram Title</label>
-        <input type="text" id="settings-diagram-title" placeholder="Infrastructure Map">
-      </div>
-      <div class="form-group">
-        <label>Roadmap Title</label>
-        <input type="text" id="settings-roadmap-title" placeholder="Digital Transformation Roadmap">
-      </div>
       <div class="form-group">
         <label>Logo</label>
         <div class="logo-section">
@@ -512,6 +502,10 @@
           <input type="number" id="gantt-edit-days" min="1" step="1" value="30" style="width:90px">
           <span class="duration-hint" id="gantt-edit-hint"></span>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Deadline <span style="color:var(--muted);font-size:11px;font-weight:400">(optional)</span></label>
+        <input type="date" id="gantt-edit-deadline">
       </div>
     </div>
     <div class="modal-footer">
@@ -2663,8 +2657,6 @@ const PRESET_THEMES = {
 
 let AppState = {
   meta: {
-    diagramTitle: 'Infrastructure Map',
-    roadmapTitle: 'Digital Transformation Roadmap',
     logoDataUrl: null,
     theme: 'light',
     customTheme: { ...PRESET_THEMES.light },
@@ -3452,7 +3444,9 @@ const DiagramViewController = (() => {
         edgeElasticity: 0.45,
         gravity: 0.35,
         numIter: 2500,
-        randomize: false
+        randomize: false,
+        nodeWidth:  node => (node.data('w') || 220) + 24,
+        nodeHeight: node => (node.data('h') || 100) + 24
       } : {
         nodeRepulsion: 400000,
         nodeOverlap: 20,
@@ -3770,8 +3764,11 @@ const GanttViewController = (() => {
         div.style.cursor = 'pointer';
         div.innerHTML =
           `<span style="font-size:12px;color:${muted};opacity:.35;cursor:grab;flex-shrink:0;margin-right:2px;line-height:1;user-select:none">⠿</span>` +
-          `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:8px;">${escapeHtml(t.name)}</span>`;
-        div.addEventListener('click',    () => selectTarget(t.id));
+          `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:8px;">${escapeHtml(t.name)}</span>` +
+          `<span class="gantt-row-pencil" title="Edit task" style="font-size:14px;color:${muted};opacity:0;cursor:pointer;flex-shrink:0;padding:0 4px;transition:opacity .15s;line-height:1;user-select:none">✎</span>`;
+        div.addEventListener('mouseenter', () => { div.querySelector('.gantt-row-pencil')?.style.setProperty('opacity','1'); });
+        div.addEventListener('mouseleave', () => { div.querySelector('.gantt-row-pencil')?.style.setProperty('opacity','0'); });
+        div.addEventListener('click', e => { if (e.target.closest('.gantt-row-pencil')) { ModalController.openGanttEdit(t.id); } else { selectTarget(t.id); } });
         div.addEventListener('dblclick', () => ModalController.openGanttEdit(t.id));
         div.draggable = true;
         div.addEventListener('dragstart', e => {
@@ -3817,11 +3814,12 @@ const GanttViewController = (() => {
     mc.width  = tw;
     mc.height = th;
     mc.style.cssText = `display:block;flex-shrink:0;cursor:default;`;
-    mc.addEventListener('mousemove',   onMove);
-    mc.addEventListener('mousedown',   onDown);
-    mc.addEventListener('mouseleave',  onLeave);
-    mc.addEventListener('click',       onCanvasClick);
-    mc.addEventListener('dblclick',    onCanvasDblClick);
+    mc.addEventListener('mousemove',    onMove);
+    mc.addEventListener('mousedown',    onDown);
+    mc.addEventListener('mouseleave',   onLeave);
+    mc.addEventListener('click',        onCanvasClick);
+    mc.addEventListener('dblclick',     onCanvasDblClick);
+    mc.addEventListener('contextmenu',  onCanvasContextMenu);
     content.appendChild(mc);
     body.appendChild(content);
 
@@ -3942,6 +3940,25 @@ const GanttViewController = (() => {
         }
 
         bars.push({ targetId: t.id, x: bx, y: by2, w: bw, h: bh });
+
+        // Deadline marker
+        const dl = t.gantt?.deadline;
+        if (dl) {
+          const dlDays = Math.floor((new Date(dl + 'T00:00:00') - ganttStartDate()) / 86400000);
+          if (dlDays >= 0 && dlDays <= d) {
+            const dlX = dlDays * p + 0.5;
+            ctx.save();
+            ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+            ctx.setLineDash([3, 2]);
+            ctx.beginPath(); ctx.moveTo(dlX, by2); ctx.lineTo(dlX, by2 + bh); ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#ef4444'; ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.moveTo(dlX - 5, by2); ctx.lineTo(dlX + 5, by2); ctx.lineTo(dlX, by2 + 8);
+            ctx.closePath(); ctx.fill();
+            ctx.restore();
+          }
+        }
       }
       y += rh;
     }
@@ -4077,6 +4094,12 @@ const GanttViewController = (() => {
     if (hit) ModalController.openGanttEdit(hit.targetId);
   }
 
+  function onCanvasContextMenu(e) {
+    e.preventDefault();
+    const hit = hitTest(e);
+    if (hit) ModalController.openGanttEdit(hit.targetId);
+  }
+
   function selectTarget(id) {
     selectedId = id;
     reDrawMain();
@@ -4109,21 +4132,25 @@ const GanttViewController = (() => {
       `<div style="color:var(--muted)">Start: ${fmtDate(barStartDate)}</div>` +
       `<div style="color:var(--muted)">End: ${fmtDate(barEndDate)}</div>` +
       `<div style="color:var(--muted)">Duration: ${target.gantt.durationDays} days</div>` +
+      (target.gantt?.deadline ? `<div style="color:#ef4444;margin-top:2px">Deadline: ${fmtDate(new Date(target.gantt.deadline + 'T00:00:00'))}</div>` : '') +
       (nodes.length ? `<div style="color:var(--muted);margin-top:4px">Systems: ${nodes.map(n=>escapeHtml(n.name)).join(', ')}</div>` : '') +
-      `<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.7">Double-click to edit</div>`;
+      `<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.7">Double-click or right-click to edit</div>`;
     document.body.appendChild(tooltipEl);
 
     const TW  = 220;
-    const barScreenLeft  = mRect.left + bar.x - document.getElementById('gantt-container').scrollLeft;
-    const barScreenCX    = Math.max(mRect.left, Math.min(mRect.right, barScreenLeft + bar.w/2));
+    const barScreenLeft   = mRect.left + bar.x - document.getElementById('gantt-container').scrollLeft;
+    const barScreenCX     = Math.max(mRect.left, Math.min(mRect.right, barScreenLeft + bar.w/2));
     const barScreenBottom = mRect.top + bar.y + bar.h;
     const barScreenTop    = mRect.top + bar.y;
     let tx = barScreenCX - TW/2;
-    // Prefer below bar; fall back to above if near bottom
+    const TH = tooltipEl.offsetHeight || 180;
+    const toolbarBottom = document.getElementById('roadmap-toolbar')?.getBoundingClientRect().bottom ?? 8;
+    // Prefer below bar; fall back to above if near bottom; clamp to below toolbar
     let ty = barScreenBottom + 8;
-    if (ty + 160 > window.innerHeight - 8) ty = barScreenTop - 160;
+    if (ty + TH > window.innerHeight - 8) ty = barScreenTop - TH - 8;
+    ty = Math.max(toolbarBottom + 4, ty);
     tooltipEl.style.left = Math.max(8, Math.min(tx, window.innerWidth-TW-8)) + 'px';
-    tooltipEl.style.top  = Math.max(8, ty) + 'px';
+    tooltipEl.style.top  = ty + 'px';
 
     // Auto-hide after 4s
     setTimeout(hideTooltip, 4000);
@@ -4196,10 +4223,6 @@ const GanttViewController = (() => {
       body.style.minWidth = '';
       return;
     }
-    // Sync toolbar title
-    const titleEl = document.getElementById('roadmap-title-display');
-    if (titleEl) titleEl.textContent = AppState.meta.roadmapTitle || '';
-
     // Auto-phase once if all targets are at offset 0 and dep edges exist
     if (!_autoPhased) {
       _autoPhased = true;
@@ -4234,6 +4257,37 @@ const GanttViewController = (() => {
     buildLayout(rows);
   }
 
+  function syncPpdSlider() {
+    const s = document.getElementById('gantt-ppdscale');
+    if (s) s.value = Math.max(0.25, Math.min(2, ppdScale));
+    const lbl = document.getElementById('gantt-ppdscale-label');
+    if (lbl) lbl.textContent = ppdScale.toFixed(2) + '×';
+  }
+
+  function ganttZoomIn() {
+    ppdScale = Math.min(2, ppdScale * 1.2);
+    AppState.meta.ganttPpdScale = ppdScale;
+    syncPpdSlider(); touchState(); AutoSave.schedule(); render();
+  }
+
+  function ganttZoomOut() {
+    ppdScale = Math.max(0.25, ppdScale / 1.2);
+    AppState.meta.ganttPpdScale = ppdScale;
+    syncPpdSlider(); touchState(); AutoSave.schedule(); render();
+  }
+
+  function ganttFitAll() {
+    const td = totalDays();
+    if (td <= 0) return;
+    const container = document.getElementById('gantt-container');
+    const availW = (container?.clientWidth || 800) - SIDEBAR_W;
+    const base = zoom === 'weeks' ? 20 : zoom === 'quarters' ? 2.5 : zoom === 'years' ? 0.7 : 6;
+    ppdScale = Math.max(0.05, availW / (td * base));
+    AppState.meta.ganttPpdScale = ppdScale;
+    syncPpdSlider(); touchState(); AutoSave.schedule(); render();
+    if (container) container.scrollLeft = 0;
+  }
+
   function init() {
     zoom     = AppState.meta.ganttZoom || 'months';
     ppdScale = AppState.meta.ganttPpdScale || 1.0;
@@ -4255,7 +4309,7 @@ const GanttViewController = (() => {
 
   function resetAutoPhase() { _autoPhased = false; }
 
-  return { init, refresh, resetAutoPhase };
+  return { init, refresh, resetAutoPhase, ganttZoomIn, ganttZoomOut, ganttFitAll };
 })();
 
 // ================================================================
@@ -4265,7 +4319,7 @@ const ExportController = (() => {
   async function saveJSON() {
     touchState();
     const content = JSON.stringify(AppState, null, 2);
-    const defaultName = (AppState.meta.diagramTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'project') + '.infra.json';
+    const defaultName = 'project.infra.json';
     if (window.showSaveFilePicker) {
       try {
         const handle = await window.showSaveFilePicker({
@@ -4308,8 +4362,6 @@ const ExportController = (() => {
     StateHistory.clear();
     AppState = {
       meta: {
-        diagramTitle: parsed.meta?.diagramTitle || 'Infrastructure Map',
-        roadmapTitle: parsed.meta?.roadmapTitle || 'Digital Transformation Roadmap',
         ganttStartDate: parsed.meta?.ganttStartDate || new Date().toISOString().slice(0, 10),
         ganttZoom: parsed.meta?.ganttZoom || 'months',
         ganttPpdScale: parsed.meta?.ganttPpdScale || 1.0,
@@ -4379,17 +4431,36 @@ const ExportController = (() => {
     const prevOverflow = container?.style.overflow || '';
     if (container) container.style.overflow = 'visible';
     try {
-      showToast('Generating PDF…', 'info', 2000);
-      const canvas = await html2canvas(captureEl, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      showToast('Generating PDF…', 'info', 3000);
+      const SCALE = 1.5;
+      const canvas = await html2canvas(captureEl, { scale: SCALE, useCORS: true, backgroundColor: '#ffffff' });
       const { jsPDF } = jspdf;
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
       const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
-      const pxPerMm = canvas.width / pw;
-      const fw = pw, fh = Math.min(ph, canvas.height / pxPerMm);
-      pdf.addImage(imgData, 'JPEG', 0, (ph - fh) / 2, fw, fh);
-      const title = (isRoadmap ? AppState.meta.roadmapTitle : AppState.meta.diagramTitle) || 'export';
-      pdf.save(title.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.pdf');
+
+      if (!isRoadmap) {
+        // Diagram: single page, scale to fit
+        const pxPerMm = canvas.width / pw;
+        const fh = Math.min(ph, canvas.height / pxPerMm);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, (ph - fh) / 2, pw, fh);
+      } else {
+        // Roadmap: tile horizontally across pages if wider than one A3 sheet
+        const pxPerMmH = canvas.height / ph;          // scale so height fills page
+        const pageWidthPx = pw * pxPerMmH;
+        const pages = Math.ceil(canvas.width / pageWidthPx);
+        for (let pg = 0; pg < pages; pg++) {
+          if (pg > 0) pdf.addPage([420, 297], 'landscape');
+          const srcX  = Math.round(pg * pageWidthPx);
+          const srcW  = Math.round(Math.min(pageWidthPx, canvas.width - srcX));
+          const slice = document.createElement('canvas');
+          slice.width  = srcW;
+          slice.height = canvas.height;
+          slice.getContext('2d').drawImage(canvas, srcX, 0, srcW, canvas.height, 0, 0, srcW, canvas.height);
+          const sliceWMm = (srcW / pxPerMmH);
+          pdf.addImage(slice.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, sliceWMm, ph);
+        }
+      }
+      pdf.save('export.pdf');
       showToast('PDF exported.', 'success');
     } catch { showToast('PDF export failed.', 'error'); }
     finally {
@@ -4489,9 +4560,6 @@ const ModalController = (() => {
     document.getElementById('settings-theme').value = themeVal;
     document.getElementById('custom-colors-block').style.display = themeVal === 'custom' ? 'block' : 'none';
 
-    document.getElementById('settings-diagram-title').value = AppState.meta.diagramTitle;
-    document.getElementById('settings-roadmap-title').value = AppState.meta.roadmapTitle;
-
     const ct = AppState.meta.customTheme;
     document.getElementById('custom-bg').value      = ct.background       || '#f8fafc';
     document.getElementById('custom-surface').value = ct.surface          || '#ffffff';
@@ -4563,8 +4631,6 @@ const ModalController = (() => {
 
     document.getElementById('btn-settings-save').addEventListener('click', () => {
       StateHistory.push();
-      AppState.meta.diagramTitle = document.getElementById('settings-diagram-title').value.trim() || 'Infrastructure Map';
-      AppState.meta.roadmapTitle = document.getElementById('settings-roadmap-title').value.trim() || 'Digital Transformation Roadmap';
       const nt = document.getElementById('settings-theme').value;
       if (nt === 'custom') {
         AppState.meta.customTheme.background       = document.getElementById('custom-bg').value;
@@ -4575,7 +4641,6 @@ const ModalController = (() => {
         AppState.meta.customTheme.accentColor      = document.getElementById('custom-accent').value;
       }
       ThemeController.setTheme(nt);
-      AppController.updateTitles();
       DiagramViewController.refresh();
       touchState(); AutoSave.schedule();
       close(); showToast('Settings saved.', 'success');
@@ -4759,6 +4824,7 @@ const ModalController = (() => {
     document.getElementById('gantt-edit-name').value = t.name;
     document.getElementById('gantt-edit-days').value = t.gantt?.durationDays
       || UpgradeTargetManager.durationToDays(t.estimatedDuration.value, t.estimatedDuration.unit);
+    document.getElementById('gantt-edit-deadline').value = t.gantt?.deadline || '';
     updateGanttEditHint();
     open('modal-gantt-edit');
   }
@@ -4775,12 +4841,15 @@ const ModalController = (() => {
   function bindGanttEditEvents() {
     document.getElementById('gantt-edit-days')?.addEventListener('input', updateGanttEditHint);
     document.getElementById('btn-gantt-edit-save')?.addEventListener('click', () => {
-      const id   = document.getElementById('gantt-edit-id').value;
-      const name = document.getElementById('gantt-edit-name').value.trim();
-      const days = Math.max(1, parseInt(document.getElementById('gantt-edit-days').value) || 1);
+      const id       = document.getElementById('gantt-edit-id').value;
+      const name     = document.getElementById('gantt-edit-name').value.trim();
+      const days     = Math.max(1, parseInt(document.getElementById('gantt-edit-days').value) || 1);
+      const deadline = document.getElementById('gantt-edit-deadline').value || null;
       const t = UpgradeTargetManager.getById(id);
       if (!t || !name) return;
       UpgradeTargetManager.update(id, { name, category: t.category, estimatedDuration: { value: days, unit: 'days' } });
+      const updated = UpgradeTargetManager.getById(id);
+      if (updated) updated.gantt.deadline = deadline;
       close();
       GanttViewController.refresh();
       DiagramViewController.refresh();
@@ -5040,7 +5109,6 @@ const AppController = (() => {
     DiagramViewController.init();
     DiagramViewController.bindContextMenu();
     GanttViewController.init();
-    updateTitles();
     updateUndoRedoUI();
     bindGlobalEvents();
     bindKeyboardShortcuts();
@@ -5058,17 +5126,10 @@ const AppController = (() => {
   }
 
   function refreshAll() {
-    updateTitles();
     DiagramViewController.refresh();
     DiagramViewController.buildCategoryChips();
     GanttViewController.refresh();
     updateUndoRedoUI();
-  }
-
-  function updateTitles() {
-    const titleEl = document.getElementById('roadmap-title-display');
-    if (titleEl) titleEl.textContent = AppState.meta.roadmapTitle || '';
-    ThemeController.apply();
   }
 
   function bindGlobalEvents() {
@@ -5102,8 +5163,6 @@ const AppController = (() => {
     document.getElementById('btn-fit')?.addEventListener('click', () => DiagramViewController.fit());
     document.getElementById('btn-manage-targets')?.addEventListener('click', ModalController.openManageTargets);
     document.getElementById('btn-manage-categories')?.addEventListener('click', ModalController.openManageCategories);
-    document.getElementById('btn-export-diagram-img')?.addEventListener('click', ExportController.exportDiagramPNG);
-
     // Search
     const searchInput = document.getElementById('diagram-search');
     searchInput?.addEventListener('input', e => DiagramViewController.setSearch(e.target.value));
@@ -5146,12 +5205,13 @@ const AppController = (() => {
       if (ctrl && e.key === 'f')                         { e.preventDefault(); DiagramViewController.fit(); }
       if (ctrl && e.shiftKey && e.key === 'E')           { e.preventDefault(); if (activeView==='diagram') ExportController.exportDiagramPNG(); else ExportController.exportRoadmapPNG(); }
       if (!inInput && e.key === 'Tab')                   { e.preventDefault(); switchView(activeView === 'diagram' ? 'roadmap' : 'diagram'); }
-      if (!inInput && e.key === '+')                     { DiagramViewController.zoomIn(); }
-      if (!inInput && e.key === '-')                     { DiagramViewController.zoomOut(); }
+      if (!inInput && e.key === '+')  { if (activeView==='roadmap') GanttViewController.ganttZoomIn();  else DiagramViewController.zoomIn(); }
+      if (!inInput && e.key === '-')  { if (activeView==='roadmap') GanttViewController.ganttZoomOut(); else DiagramViewController.zoomOut(); }
+      if (!inInput && e.key === '0')  { e.preventDefault(); if (activeView==='roadmap') GanttViewController.ganttFitAll(); else DiagramViewController.fit(); }
     });
   }
 
-  return { init, switchView, refreshAll, updateTitles };
+  return { init, switchView, refreshAll };
 })();
 
 document.addEventListener('DOMContentLoaded', () => AppController.init());
