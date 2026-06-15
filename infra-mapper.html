@@ -299,13 +299,18 @@
       </label>
       <span class="toolbar-sep"></span>
       <label style="font-size:12px;display:flex;align-items:center;gap:5px">
-        Zoom:
+        Scale:
         <select id="gantt-zoom" style="font-size:12px;padding:3px 6px;width:auto">
           <option value="weeks">Weeks</option>
           <option value="months" selected>Months</option>
           <option value="quarters">Quarters</option>
           <option value="years">Years</option>
         </select>
+      </label>
+      <label style="font-size:12px;display:flex;align-items:center;gap:5px;flex-shrink:0">
+        Zoom:
+        <input type="range" id="gantt-ppdscale" min="0.25" max="4" step="0.05" value="1" style="width:110px;cursor:pointer;accent-color:var(--accent)">
+        <span id="gantt-ppdscale-label" style="font-size:11px;color:var(--muted);min-width:28px;text-align:right">1.0×</span>
       </label>
     </div>
     <div id="gantt-container">
@@ -2646,7 +2651,9 @@ let AppState = {
     theme: 'light',
     customTheme: { ...PRESET_THEMES.light },
     lastModified: new Date().toISOString(),
-    ganttStartDate: new Date().toISOString().slice(0, 10)
+    ganttStartDate: new Date().toISOString().slice(0, 10),
+    ganttZoom: 'months',
+    ganttPpdScale: 1.0
   },
   categories: [],
   upgradeTargets: [],
@@ -4143,7 +4150,11 @@ const GanttViewController = (() => {
     const zoomSel = document.getElementById('gantt-zoom');
     if (zoomSel && !zoomSel._gwired) {
       zoomSel._gwired = true;
-      zoomSel.addEventListener('change', () => { zoom = zoomSel.value; render(); });
+      zoomSel.addEventListener('change', () => {
+        zoom = zoomSel.value;
+        AppState.meta.ganttZoom = zoom;
+        touchState(); AutoSave.schedule(); render();
+      });
     }
     const depCb = document.getElementById('toggle-dep-lines');
     if (depCb && !depCb._gwired) {
@@ -4163,14 +4174,26 @@ const GanttViewController = (() => {
         touchState(); AutoSave.schedule(); render();
       });
     }
+    const scaleSlider = document.getElementById('gantt-ppdscale');
+    if (scaleSlider && !scaleSlider._gwired) {
+      scaleSlider._gwired = true;
+      scaleSlider.addEventListener('input', () => {
+        ppdScale = parseFloat(scaleSlider.value);
+        AppState.meta.ganttPpdScale = ppdScale;
+        const lbl = document.getElementById('gantt-ppdscale-label');
+        if (lbl) lbl.textContent = ppdScale.toFixed(1) + '×';
+        touchState(); AutoSave.schedule(); render();
+      });
+    }
     const container = document.getElementById('gantt-container');
     if (container && !container._zoomWired) {
       container._zoomWired = true;
       container.addEventListener('wheel', e => {
         if (!e.ctrlKey) return;
         e.preventDefault();
-        ppdScale = Math.max(0.15, Math.min(6, ppdScale * (e.deltaY > 0 ? 0.88 : 1.14)));
-        render();
+        ppdScale = Math.max(0.25, Math.min(4, ppdScale * (e.deltaY > 0 ? 0.88 : 1.14)));
+        AppState.meta.ganttPpdScale = ppdScale;
+        touchState(); AutoSave.schedule(); render();
       }, { passive: false });
     }
   }
@@ -4178,9 +4201,13 @@ const GanttViewController = (() => {
   // ── Render ────────────────────────────────────────────────────
   function render() {
     hideTooltip();
-    // Sync start date picker
+    // Sync toolbar controls
     const dp = document.getElementById('gantt-start-date');
     if (dp) dp.value = AppState.meta.ganttStartDate || new Date().toISOString().slice(0, 10);
+    const slider = document.getElementById('gantt-ppdscale');
+    if (slider) { slider.value = Math.max(0.25, Math.min(4, ppdScale)); }
+    const sliderLbl = document.getElementById('gantt-ppdscale-label');
+    if (sliderLbl) sliderLbl.textContent = ppdScale.toFixed(1) + '×';
     const body = document.getElementById('gantt-body');
     if (!body) return;
     if (!AppState.upgradeTargets.length) {
@@ -4198,14 +4225,24 @@ const GanttViewController = (() => {
   }
 
   function init() {
-    zoom         = document.getElementById('gantt-zoom')?.value || 'months';
+    zoom         = AppState.meta.ganttZoom || 'months';
+    ppdScale     = AppState.meta.ganttPpdScale || 1.0;
     showDepLines = document.getElementById('toggle-dep-lines')?.checked || false;
     showMilestones = document.getElementById('toggle-milestones')?.checked !== false;
+    const zoomSel = document.getElementById('gantt-zoom');
+    if (zoomSel) zoomSel.value = zoom;
     wireToolbar();
     render();
   }
 
-  function refresh() { render(); }
+  function refresh() {
+    // Re-sync zoom/scale from AppState in case a project was loaded
+    zoom     = AppState.meta.ganttZoom     || zoom;
+    ppdScale = AppState.meta.ganttPpdScale || ppdScale;
+    const zoomSel = document.getElementById('gantt-zoom');
+    if (zoomSel) zoomSel.value = zoom;
+    render();
+  }
 
   return { init, refresh };
 })();
@@ -4263,6 +4300,8 @@ const ExportController = (() => {
         diagramTitle: parsed.meta?.diagramTitle || 'Infrastructure Map',
         roadmapTitle: parsed.meta?.roadmapTitle || 'Digital Transformation Roadmap',
         ganttStartDate: parsed.meta?.ganttStartDate || new Date().toISOString().slice(0, 10),
+        ganttZoom: parsed.meta?.ganttZoom || 'months',
+        ganttPpdScale: parsed.meta?.ganttPpdScale || 1.0,
         logoDataUrl: parsed.meta?.logoDataUrl || null,
         theme: parsed.meta?.theme || 'light',
         customTheme: parsed.meta?.customTheme || { ...PRESET_THEMES.light },
