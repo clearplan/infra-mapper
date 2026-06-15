@@ -3969,6 +3969,34 @@ const GanttViewController = (() => {
         ctx.fillRect(0, y, W, rh);
         ctx.strokeStyle = cc; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(0,y+rh-.5); ctx.lineTo(W,y+rh-.5); ctx.stroke();
+
+        if (collapsed.has(row.category)) {
+          const catTargets = AppState.upgradeTargets.filter(t => t.category === row.category);
+          if (catTargets.length) {
+            const minStart = Math.min(...catTargets.map(t => t.gantt?.startOffset || 0));
+            const maxEnd   = Math.max(...catTargets.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
+            const bx = minStart * p;
+            const bw = Math.max((maxEnd - minStart) * p, 4);
+            const PAD = 6, by2 = y + PAD, bh = rh - PAD * 2;
+            ctx.save();
+            roundRect(ctx, bx, by2, bw, bh, 3);
+            ctx.fillStyle = hexAlpha(cc, 0.3);
+            ctx.fill();
+            ctx.setLineDash([4, 3]);
+            ctx.strokeStyle = cc; ctx.lineWidth = 1; ctx.globalAlpha = 0.7;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            if (bw > 40) {
+              const label = `${catTargets.length} task${catTargets.length === 1 ? '' : 's'}`;
+              ctx.fillStyle = cc; ctx.globalAlpha = 0.85;
+              ctx.font = '10px system-ui,sans-serif'; ctx.textBaseline = 'middle';
+              ctx.fillText(label, bx + 6, by2 + bh / 2);
+              ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+          }
+        }
       } else {
         const t = row.target;
         const rowBg = i%2===0 ? (isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,0)')
@@ -4296,11 +4324,6 @@ const GanttViewController = (() => {
     }
 
     const rows = buildRows();
-    if (!rows.some(r => r.type==='task')) {
-      body.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
-      body.style.minWidth = '';
-      return;
-    }
     if (autoFit) {
       const container = document.getElementById('gantt-container');
       if (container) {
