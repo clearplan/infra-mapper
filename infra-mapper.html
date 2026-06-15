@@ -3148,15 +3148,16 @@ const DiagramViewController = (() => {
     const W = Math.max(120, customWidth || 220), LB = 4, PL = LB + 10, PR = 10, PV = 10;
     const MAX_CONN = 5;
     const hasIcon = !!(iconSvg || iconKey || iconDataUrl);
-    const ICON_H = hasIcon ? 30 : 0, ICON_GAP = hasIcon ? 6 : 0;
+    const ICON_W = 28, ICON_GAP = hasIcon ? 10 : 0;
     const NAME_H = 18, CAT_H = 15;
+    const HEADER_H = Math.max(hasIcon ? ICON_W : 0, NAME_H + CAT_H);
     const shown = Math.min(connections.length, MAX_CONN);
     const hasSep = hasUpgrade || connections.length > 0;
     const SEP_H = hasSep ? 14 : 0;
     const BADGE_H = hasUpgrade ? 22 : 0;
     const MORE_H = connections.length > MAX_CONN ? 14 : 0;
     const CONN_H = shown * 15;
-    const H = PV + ICON_H + ICON_GAP + NAME_H + CAT_H + SEP_H + BADGE_H + CONN_H + MORE_H + PV;
+    const H = PV + HEADER_H + SEP_H + BADGE_H + CONN_H + MORE_H + PV;
 
     const surf  = theme.surface    || '#ffffff';
     const text  = theme.textColor  || '#1e293b';
@@ -3200,31 +3201,33 @@ const DiagramViewController = (() => {
     }
 
     let y = PV;
+    const textX = hasIcon ? PL + ICON_W + ICON_GAP : PL;
+
     if (hasIcon) {
+      const iconY = y + Math.round((HEADER_H - ICON_W) / 2);
       if (iconSvg) {
         const vb = iconViewBox || '0 0 24 24';
         const coloredBody = iconSvg.replace(/__ICON_COLOR__/g, muted);
-        p.push(`<svg xmlns="http://www.w3.org/2000/svg" x="${PL}" y="${y}" width="28" height="28" viewBox="${vb}" fill="${muted}" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${coloredBody}</svg>`);
+        p.push(`<svg xmlns="http://www.w3.org/2000/svg" x="${PL}" y="${iconY}" width="${ICON_W}" height="${ICON_W}" viewBox="${vb}" fill="${muted}" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${coloredBody}</svg>`);
       } else if (iconKey && ICON_LIBRARY[iconKey]) {
-        const sc = (28/24).toFixed(4);
-        p.push(`<g transform="translate(${PL},${y}) scale(${sc})" fill="none" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[iconKey]}</g>`);
+        const sc = (ICON_W/24).toFixed(4);
+        p.push(`<g transform="translate(${PL},${iconY}) scale(${sc})" fill="none" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[iconKey]}</g>`);
       } else if (iconDataUrl) {
-        p.push(`<image href="${iconDataUrl}" x="${PL}" y="${y}" width="28" height="28" preserveAspectRatio="xMidYMid meet"/>`);
+        p.push(`<image href="${iconDataUrl}" x="${PL}" y="${iconY}" width="${ICON_W}" height="${ICON_W}" preserveAspectRatio="xMidYMid meet"/>`);
       }
-      y += ICON_H + ICON_GAP;
     }
 
     const nameFontSize = kns ? (kns.fontSize || 15) : 13;
-    const nameMax = Math.round(22 * W / 220);
+    const nameMax = hasIcon ? Math.round(17 * W / 220) : Math.round(22 * W / 220);
     const nameStr = name.length > nameMax ? name.slice(0, nameMax-1)+'…' : name;
     const nameColor = isUnchanged ? muted : text;
-    p.push(`<text x="${PL}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="${nameFontSize}" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
-    y += NAME_H;
+    p.push(`<text x="${textX}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="${nameFontSize}" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
 
-    const catMax = Math.round(28 * W / 220);
+    const catMax = hasIcon ? Math.round(22 * W / 220) : Math.round(28 * W / 220);
     const catStr = category.length > catMax ? category.slice(0, catMax-1)+'…' : category;
-    p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="${muted}">${escapeXml(catStr)}</text>`);
-    y += CAT_H;
+    p.push(`<text x="${textX}" y="${y+NAME_H+11}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="${muted}">${escapeXml(catStr)}</text>`);
+
+    y += HEADER_H;
 
     if (hasSep) {
       y += 5;
