@@ -2901,8 +2901,7 @@ const AutoPhasingEngine = (() => {
     for (const [id, depSet] of deps) for (const dep of [...depSet]) {
       if (deps.get(dep)?.has(id)) { const keep = id < dep ? dep : id; const rem = id < dep ? id : dep; deps.get(rem)?.delete(keep); showToast('Circular dependency detected — scheduling by name order.', 'warning', 4000); }
     }
-    const inDeg = new Map(ids.map(id => [id, 0]));
-    for (const [, depSet] of deps) for (const dep of depSet) inDeg.set(dep, (inDeg.get(dep)||0)+1);
+    const inDeg = new Map(ids.map(id => [id, deps.get(id)?.size || 0]));
     const queue = ids.filter(id => (inDeg.get(id)||0) === 0);
     const offsets = new Map(ids.map(id => [id, 0]));
     while (queue.length) {
@@ -3470,21 +3469,523 @@ const DiagramViewController = (() => {
 })();
 
 // ================================================================
-// 10. GANTT VIEW CONTROLLER (stub — phase 3)
+// 10. GANTT VIEW CONTROLLER
 // ================================================================
 const GanttViewController = (() => {
-  function init()    { renderPlaceholder(); }
-  function refresh() { renderPlaceholder(); }
+  const SIDEBAR_W = 200;
+  const ROW_H     = 36;
+  const SWIMLANE_H = 32;
+  const HEADER_H  = 34;
+  const HANDLE_W  = 8;
+  const MIN_DAYS  = 7;
 
-  function renderPlaceholder() {
-    const container = document.getElementById('gantt-body');
-    if (!container) return;
-    if (!AppState.upgradeTargets.length) {
-      container.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
+  let zoom         = 'months';
+  let showDepLines = false;
+  let showMilestones = true;
+  let collapsed    = new Set();
+  let selectedId   = null;
+  let bars         = []; // { targetId, x, y, w, h }
+  let dragState    = null;
+  let tooltipEl    = null;
+
+  // ── Helpers ────────────────────────────────────────────────────
+  function ppd() {
+    if (zoom === 'weeks')    return 20;
+    if (zoom === 'quarters') return 2.5;
+    return 6;
+  }
+
+  function totalDays() {
+    const ts = AppState.upgradeTargets;
+    if (!ts.length) return 365;
+    const max = Math.max(...ts.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
+    return Math.max(max + 90, 180);
+  }
+
+  function hexAlpha(hex, a) {
+    if (!hex || hex.length < 7) return `rgba(100,100,100,${a})`;
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function buildRows() {
+    const rows = [];
+    const cats = [...new Set([...AppState.categories, ...AppState.upgradeTargets.map(t => t.category)])];
+    for (const cat of cats) {
+      const targets = AppState.upgradeTargets.filter(t => t.category === cat);
+      if (!targets.length) continue;
+      rows.push({ type: 'swimlane', category: cat });
+      if (!collapsed.has(cat)) {
+        for (const t of targets) rows.push({ type: 'task', target: t });
+      }
+    }
+    return rows;
+  }
+
+  function rowH(row) { return row.type === 'swimlane' ? SWIMLANE_H : ROW_H; }
+  function totalH(rows) { return rows.reduce((s, r) => s + rowH(r), 0); }
+
+  // ── Layout build ───────────────────────────────────────────────
+  function buildLayout(rows) {
+    const body = document.getElementById('gantt-body');
+    if (!body) return;
+    const tw = Math.ceil(totalDays() * ppd());
+    const th = Math.max(totalH(rows), 1);
+    const theme = ThemeController.active();
+    const surf  = theme.surface      || '#ffffff';
+    const bord  = theme.borderColor  || '#e2e8f0';
+    const txt   = theme.textColor    || '#1e293b';
+    const muted = theme.mutedColor   || '#64748b';
+
+    body.innerHTML = '';
+    body.style.minWidth = (SIDEBAR_W + tw) + 'px';
+
+    // ── Header row (sticky top) ──
+    const hdrRow = document.createElement('div');
+    hdrRow.style.cssText = `display:flex;position:sticky;top:0;z-index:10;height:${HEADER_H}px;`;
+
+    const sideHdr = document.createElement('div');
+    sideHdr.style.cssText = `width:${SIDEBAR_W}px;flex-shrink:0;position:sticky;left:0;z-index:11;`
+      + `background:${surf};border-right:1px solid ${bord};border-bottom:1px solid ${bord};`
+      + `display:flex;align-items:center;padding:0 12px;`;
+    sideHdr.innerHTML = `<span style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${muted}">Task</span>`;
+    hdrRow.appendChild(sideHdr);
+
+    const hCanvas = document.createElement('canvas');
+    hCanvas.id = 'gantt-header-canvas';
+    hCanvas.width  = tw;
+    hCanvas.height = HEADER_H;
+    hCanvas.style.cssText = `display:block;flex-shrink:0;`;
+    hdrRow.appendChild(hCanvas);
+    body.appendChild(hdrRow);
+
+    // ── Content area ──
+    const content = document.createElement('div');
+    content.style.cssText = `display:flex;position:relative;`;
+
+    // Sidebar (sticky left)
+    const sidebar = document.createElement('div');
+    sidebar.style.cssText = `width:${SIDEBAR_W}px;flex-shrink:0;position:sticky;left:0;z-index:5;background:${surf};border-right:1px solid ${bord};`;
+
+    for (const row of rows) {
+      const rh = rowH(row);
+      const div = document.createElement('div');
+      div.style.cssText = `height:${rh}px;display:flex;align-items:center;padding:0 8px;border-bottom:1px solid ${bord};box-sizing:border-box;overflow:hidden;`;
+
+      if (row.type === 'swimlane') {
+        const cc = CategoryManager.getSwimlaneColor(row.category);
+        div.style.cssText += `background:${hexAlpha(cc,0.08)};border-left:3px solid ${cc};cursor:pointer;padding-left:5px;`;
+        div.innerHTML = `<span style="font-size:12px;font-weight:600;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(row.category)}</span>`
+          + `<span style="font-size:10px;color:${muted};margin-right:4px;flex-shrink:0">${collapsed.has(row.category)?'▶':'▼'}</span>`;
+        const cat = row.category;
+        div.addEventListener('click', () => {
+          if (collapsed.has(cat)) collapsed.delete(cat); else collapsed.add(cat);
+          render();
+        });
+      } else {
+        const t = row.target;
+        const isSel = t.id === selectedId;
+        const accentColor = theme.accentColor || '#3b82f6';
+        if (isSel) div.style.background = hexAlpha(accentColor, 0.1);
+        div.style.cursor = 'pointer';
+        div.innerHTML = `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:12px;">${escapeHtml(t.name)}</span>`;
+        div.addEventListener('click',    () => selectTarget(t.id));
+        div.addEventListener('dblclick', () => ModalController.openTargetEditor(t.id));
+      }
+      sidebar.appendChild(div);
+    }
+    content.appendChild(sidebar);
+
+    // Main canvas
+    const mc = document.createElement('canvas');
+    mc.id = 'gantt-main-canvas';
+    mc.width  = tw;
+    mc.height = th;
+    mc.style.cssText = `display:block;flex-shrink:0;cursor:default;`;
+    mc.addEventListener('mousemove',   onMove);
+    mc.addEventListener('mousedown',   onDown);
+    mc.addEventListener('mouseleave',  onLeave);
+    mc.addEventListener('click',       onCanvasClick);
+    mc.addEventListener('dblclick',    onCanvasDblClick);
+    content.appendChild(mc);
+    body.appendChild(content);
+
+    drawHeader(rows, hCanvas, theme, tw);
+    drawMain(rows, mc, theme);
+  }
+
+  // ── Header canvas ─────────────────────────────────────────────
+  function drawHeader(rows, canvas, theme, tw) {
+    const ctx = canvas.getContext('2d');
+    const H   = HEADER_H;
+    const d   = totalDays();
+    const p   = ppd();
+
+    ctx.fillStyle = theme.surface || '#ffffff';
+    ctx.fillRect(0, 0, tw, H);
+
+    ctx.strokeStyle = theme.borderColor || '#e2e8f0';
+    ctx.fillStyle   = theme.textColor   || '#1e293b';
+    ctx.font        = '11px system-ui,sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth   = 1;
+
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const QTRS   = ['Q1','Q2','Q3','Q4'];
+
+    if (zoom === 'weeks') {
+      const ww = p * 7;
+      for (let w = 0; w * 7 < d; w++) {
+        const x = w * ww;
+        ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
+        ctx.fillText(`Wk ${w+1}`, x+4, H/2);
+      }
+    } else if (zoom === 'months') {
+      let day = 0, m = 0;
+      while (day < d) {
+        const x = day * p;
+        ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
+        ctx.fillText(MONTHS[m%12], x+4, H/2);
+        day += 30; m++;
+      }
     } else {
-      container.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Gantt chart coming in phase 3.</p></div>';
+      let day = 0, q = 0;
+      ctx.font = 'bold 12px system-ui,sans-serif';
+      while (day < d) {
+        const x = day * p;
+        ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,H); ctx.stroke();
+        ctx.fillText(QTRS[q%4], x+6, H/2);
+        day += 91; q++;
+      }
+    }
+    // Bottom border
+    ctx.beginPath(); ctx.moveTo(0,H-.5); ctx.lineTo(tw,H-.5); ctx.stroke();
+  }
+
+  // ── Main canvas ───────────────────────────────────────────────
+  function drawMain(rows, canvas, theme) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const d = totalDays(), p = ppd();
+    const isDark = ['dark','highContrast'].includes(AppState.meta.theme);
+
+    ctx.clearRect(0, 0, W, H);
+    bars = [];
+    let y = 0;
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const rh  = rowH(row);
+
+      if (row.type === 'swimlane') {
+        const cc = CategoryManager.getSwimlaneColor(row.category);
+        ctx.fillStyle = hexAlpha(cc, isDark ? 0.15 : 0.07);
+        ctx.fillRect(0, y, W, rh);
+        ctx.strokeStyle = cc; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0,y+rh-.5); ctx.lineTo(W,y+rh-.5); ctx.stroke();
+      } else {
+        const t = row.target;
+        const rowBg = i%2===0 ? (isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,0)')
+                               : (isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.018)');
+        ctx.fillStyle = rowBg; ctx.fillRect(0, y, W, rh);
+        ctx.strokeStyle = theme.borderColor||'#e2e8f0'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0,y+rh-.5); ctx.lineTo(W,y+rh-.5); ctx.stroke();
+
+        const bx = (t.gantt?.startOffset||0) * p;
+        const bw = Math.max((t.gantt?.durationDays||30) * p, HANDLE_W*2+10);
+        const PAD = 5;
+        const by2 = y + PAD, bh = rh - PAD*2;
+
+        const cc = CategoryManager.getSwimlaneColor(t.category);
+        const isSel = t.id === selectedId;
+        ctx.fillStyle = isSel ? cc : hexAlpha(cc, 0.78);
+        roundRect(ctx, bx, by2, bw, bh, 4);
+        ctx.fill();
+        ctx.strokeStyle = cc; ctx.lineWidth = isSel ? 2.5 : 1;
+        ctx.stroke();
+
+        // Bar text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '11px system-ui,sans-serif';
+        ctx.textBaseline = 'middle';
+        const tx2 = bx + HANDLE_W + 4, maxTW = bw - HANDLE_W*2 - 8;
+        if (maxTW > 20) {
+          ctx.save();
+          ctx.beginPath(); ctx.rect(bx+1, by2, bw-2, bh); ctx.clip();
+          ctx.fillText(t.name, tx2, by2 + bh/2);
+          ctx.restore();
+        }
+
+        bars.push({ targetId: t.id, x: bx, y: by2, w: bw, h: bh });
+      }
+      y += rh;
+    }
+
+    // Vertical grid lines (behind everything - already drawn above, but let's draw lightly on top)
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = theme.borderColor || '#e2e8f0';
+    ctx.lineWidth = 1;
+    const p2 = ppd();
+    const col = zoom==='weeks' ? 7 : zoom==='months' ? 30 : 91;
+    for (let day2 = col; day2 < d; day2 += col) {
+      const gx = day2 * p2;
+      ctx.beginPath(); ctx.moveTo(gx+.5, 0); ctx.lineTo(gx+.5, H); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    if (showDepLines) drawDepLines(ctx, theme);
+    if (showMilestones) drawMilestones(ctx, rows, theme, p);
+  }
+
+  function drawDepLines(ctx, theme) {
+    const barMap = new Map(bars.map(b => [b.targetId, b]));
+    const drawn  = new Set();
+    for (const edge of AppState.edges) {
+      const src = AppState.nodes.find(n => n.id === edge.sourceNodeId);
+      const tgt = AppState.nodes.find(n => n.id === edge.targetNodeId);
+      if (!src?.upgradeTargetId || !tgt?.upgradeTargetId || src.upgradeTargetId === tgt.upgradeTargetId) continue;
+      const predId = edge.direction === 'in' ? tgt.upgradeTargetId : src.upgradeTargetId;
+      const succId = edge.direction === 'in' ? src.upgradeTargetId : tgt.upgradeTargetId;
+      const key = `${predId}>${succId}`;
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      const pb = barMap.get(predId), sb = barMap.get(succId);
+      if (!pb || !sb) continue;
+      const x1 = pb.x + pb.w, y1 = pb.y + pb.h/2;
+      const x2 = sb.x,        y2 = sb.y + sb.h/2;
+      ctx.strokeStyle = theme.mutedColor || '#94a3b8';
+      ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+      ctx.beginPath(); ctx.moveTo(x1,y1);
+      ctx.bezierCurveTo((x1+x2)/2,y1,(x1+x2)/2,y2,x2,y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = theme.mutedColor || '#94a3b8';
+      ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-7,y2-4); ctx.lineTo(x2-7,y2+4); ctx.closePath(); ctx.fill();
+    }
+    ctx.setLineDash([]);
+  }
+
+  function drawMilestones(ctx, rows, theme, p) {
+    const cats = [...new Set(rows.filter(r=>r.type==='swimlane').map(r=>r.category))];
+    for (const cat of cats) {
+      if (collapsed.has(cat)) continue;
+      const taskRows = rows.filter(r => r.type==='task' && r.target.category===cat);
+      if (!taskRows.length) continue;
+      const last = taskRows.reduce((mx,r) => {
+        const e = (r.target.gantt?.startOffset||0)+(r.target.gantt?.durationDays||30);
+        const me = (mx.target.gantt?.startOffset||0)+(mx.target.gantt?.durationDays||30);
+        return e > me ? r : mx;
+      });
+      const bar = bars.find(b => b.targetId===last.target.id);
+      if (!bar) continue;
+      const mx = bar.x + bar.w + 10, my = bar.y + bar.h/2, S = 7;
+      const cc = CategoryManager.getSwimlaneColor(cat);
+      ctx.fillStyle = cc; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(mx,my-S); ctx.lineTo(mx+S,my); ctx.lineTo(mx,my+S); ctx.lineTo(mx-S,my);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
     }
   }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+  }
+
+  // ── Mouse interaction ─────────────────────────────────────────
+  function hitTest(e) {
+    const canvas = document.getElementById('gantt-main-canvas');
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    for (const bar of bars) {
+      if (mx>=bar.x && mx<=bar.x+bar.w && my>=bar.y && my<=bar.y+bar.h) {
+        let zone = 'move';
+        if (mx-bar.x < HANDLE_W) zone = 'resize-left';
+        else if (bar.x+bar.w-mx < HANDLE_W) zone = 'resize-right';
+        return { targetId: bar.targetId, zone, bar };
+      }
+    }
+    return null;
+  }
+
+  function onMove(e) {
+    if (dragState) return;
+    const canvas = document.getElementById('gantt-main-canvas');
+    if (!canvas) return;
+    const hit = hitTest(e);
+    if (!hit) { canvas.style.cursor = 'default'; return; }
+    canvas.style.cursor = (hit.zone==='move') ? 'grab' : 'col-resize';
+  }
+
+  function onLeave() {
+    if (dragState) return;
+    const canvas = document.getElementById('gantt-main-canvas');
+    if (canvas) canvas.style.cursor = 'default';
+  }
+
+  function onDown(e) {
+    if (e.button !== 0) return;
+    const hit = hitTest(e);
+    if (!hit) return;
+    const target = AppState.upgradeTargets.find(t => t.id===hit.targetId);
+    if (!target) return;
+    e.preventDefault();
+    dragState = { type: hit.zone, targetId: hit.targetId, startX: e.clientX, origStart: target.gantt.startOffset, origDur: target.gantt.durationDays };
+    const canvas = document.getElementById('gantt-main-canvas');
+    if (canvas) canvas.style.cursor = dragState.type==='move' ? 'grabbing' : 'col-resize';
+    document.addEventListener('mousemove', onDocMove);
+    document.addEventListener('mouseup',   onDocUp);
+  }
+
+  function onDocMove(e) {
+    if (!dragState) return;
+    const delta = Math.round((e.clientX - dragState.startX) / ppd());
+    const target = AppState.upgradeTargets.find(t => t.id===dragState.targetId);
+    if (!target) return;
+
+    if (dragState.type === 'move') {
+      target.gantt.startOffset = Math.max(0, dragState.origStart + delta);
+    } else if (dragState.type === 'resize-right') {
+      target.gantt.durationDays = Math.max(MIN_DAYS, dragState.origDur + delta);
+    } else {
+      const maxShift = dragState.origDur - MIN_DAYS;
+      const shift    = Math.min(maxShift, Math.max(-dragState.origStart, delta));
+      target.gantt.startOffset  = dragState.origStart + shift;
+      target.gantt.durationDays = dragState.origDur - shift;
+    }
+
+    // Live re-draw main canvas only
+    const mc = document.getElementById('gantt-main-canvas');
+    const theme = ThemeController.active();
+    if (mc) drawMain(buildRows(), mc, theme);
+  }
+
+  function onDocUp() {
+    document.removeEventListener('mousemove', onDocMove);
+    document.removeEventListener('mouseup',   onDocUp);
+    if (dragState) {
+      StateHistory.push();
+      touchState(); AutoSave.schedule();
+      dragState = null;
+    }
+    render();
+  }
+
+  function onCanvasClick(e) {
+    if (dragState) return;
+    const hit = hitTest(e);
+    if (hit) { selectTarget(hit.targetId); }
+    else { selectedId = null; hideTooltip(); reDrawMain(); }
+  }
+
+  function onCanvasDblClick(e) {
+    const hit = hitTest(e);
+    if (hit) ModalController.openTargetEditor(hit.targetId);
+  }
+
+  function selectTarget(id) {
+    selectedId = id;
+    reDrawMain();
+    showTooltip(id);
+  }
+
+  function reDrawMain() {
+    const mc = document.getElementById('gantt-main-canvas');
+    if (!mc) return;
+    drawMain(buildRows(), mc, ThemeController.active());
+  }
+
+  // ── Tooltip ───────────────────────────────────────────────────
+  function showTooltip(targetId) {
+    hideTooltip();
+    const target = AppState.upgradeTargets.find(t => t.id===targetId);
+    const bar    = bars.find(b => b.targetId===targetId);
+    const mc     = document.getElementById('gantt-main-canvas');
+    if (!target || !bar || !mc) return;
+    const nodes = UpgradeTargetManager.nodesUsingTarget(targetId);
+    const mRect = mc.getBoundingClientRect();
+
+    tooltipEl = document.createElement('div');
+    tooltipEl.style.cssText = 'position:fixed;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;box-shadow:var(--shadow-md);min-width:190px;max-width:260px;pointer-events:none;line-height:1.6;';
+    tooltipEl.innerHTML =
+      `<div style="font-weight:600;font-size:13px;margin-bottom:5px">${escapeHtml(target.name)}</div>` +
+      `<div style="color:var(--muted)">Category: ${escapeHtml(target.category)}</div>` +
+      `<div style="color:var(--muted)">Duration: ${target.gantt.durationDays} days</div>` +
+      `<div style="color:var(--muted)">Start offset: Day ${target.gantt.startOffset}</div>` +
+      (nodes.length ? `<div style="color:var(--muted);margin-top:4px">Systems: ${nodes.map(n=>escapeHtml(n.name)).join(', ')}</div>` : '') +
+      `<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.7">Double-click to edit</div>`;
+    document.body.appendChild(tooltipEl);
+
+    const TW  = 220;
+    const barScreenLeft  = mRect.left + bar.x - document.getElementById('gantt-container').scrollLeft;
+    const barScreenCX    = Math.max(mRect.left, Math.min(mRect.right, barScreenLeft + bar.w/2));
+    const barScreenBottom = mRect.top + bar.y + bar.h;
+    const barScreenTop    = mRect.top + bar.y;
+    let tx = barScreenCX - TW/2;
+    // Prefer below bar; fall back to above if near bottom
+    let ty = barScreenBottom + 8;
+    if (ty + 160 > window.innerHeight - 8) ty = barScreenTop - 160;
+    tooltipEl.style.left = Math.max(8, Math.min(tx, window.innerWidth-TW-8)) + 'px';
+    tooltipEl.style.top  = Math.max(8, ty) + 'px';
+
+    // Auto-hide after 4s
+    setTimeout(hideTooltip, 4000);
+  }
+
+  function hideTooltip() { if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; } }
+
+  // ── Wire toolbar ──────────────────────────────────────────────
+  function wireToolbar() {
+    const zoomSel = document.getElementById('gantt-zoom');
+    if (zoomSel && !zoomSel._gwired) {
+      zoomSel._gwired = true;
+      zoomSel.addEventListener('change', () => { zoom = zoomSel.value; render(); });
+    }
+    const depCb = document.getElementById('toggle-dep-lines');
+    if (depCb && !depCb._gwired) {
+      depCb._gwired = true;
+      depCb.addEventListener('change', () => { showDepLines = depCb.checked; reDrawMain(); });
+    }
+    const milCb = document.getElementById('toggle-milestones');
+    if (milCb && !milCb._gwired) {
+      milCb._gwired = true;
+      milCb.addEventListener('change', () => { showMilestones = milCb.checked; reDrawMain(); });
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────
+  function render() {
+    hideTooltip();
+    const body = document.getElementById('gantt-body');
+    if (!body) return;
+    if (!AppState.upgradeTargets.length) {
+      body.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
+      body.style.minWidth = '';
+      return;
+    }
+    const rows = buildRows();
+    if (!rows.some(r => r.type==='task')) {
+      body.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
+      body.style.minWidth = '';
+      return;
+    }
+    buildLayout(rows);
+  }
+
+  function init() {
+    zoom         = document.getElementById('gantt-zoom')?.value || 'months';
+    showDepLines = document.getElementById('toggle-dep-lines')?.checked || false;
+    showMilestones = document.getElementById('toggle-milestones')?.checked !== false;
+    wireToolbar();
+    render();
+  }
+
+  function refresh() { render(); }
 
   return { init, refresh };
 })();
@@ -3553,7 +4054,29 @@ const ExportController = (() => {
     } catch { showToast('Export failed.', 'error'); }
   }
 
-  async function exportPDF() { showToast('PDF export available in phase 3.', 'info'); }
+  async function exportPDF() {
+    const activeView = document.querySelector('.view:not(.hidden)')?.id;
+    const el = activeView === 'roadmap-view'
+      ? document.getElementById('gantt-container')
+      : document.getElementById('cy-wrap');
+    if (!el || typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
+      showToast('Export not available.', 'error'); return;
+    }
+    try {
+      showToast('Generating PDF…', 'info', 2000);
+      const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: null });
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const { jsPDF } = jspdf;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+      const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
+      const pxPerMm = canvas.width / pw;
+      const fw = pw, fh = Math.min(ph, canvas.height / pxPerMm);
+      pdf.addImage(imgData, 'JPEG', 0, (ph - fh) / 2, fw, fh);
+      const title = (activeView === 'roadmap-view' ? AppState.meta.roadmapTitle : AppState.meta.diagramTitle) || 'export';
+      pdf.save(title.replace(/[^a-z0-9]/gi, '-').toLowerCase() + '.pdf');
+      showToast('PDF exported.', 'success');
+    } catch { showToast('PDF export failed.', 'error'); }
+  }
 
   return { saveJSON, loadJSON, validateAndLoadState, exportDiagramPNG, exportRoadmapPNG, exportPDF };
 })();
