@@ -3686,9 +3686,8 @@ const GanttViewController = (() => {
     const ts = AppState.upgradeTargets;
     if (!ts.length) return 365;
     const max = Math.max(...ts.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
-    const periodDays   = zoom === 'weeks' ? 7 : zoom === 'months' ? 30 : zoom === 'quarters' ? 91 : 365;
-    const bufferPeriods = zoom === 'weeks' ? 4 : zoom === 'months' ? 3  : zoom === 'quarters' ? 2  : 1;
-    const periods = Math.ceil(max / periodDays) + bufferPeriods;
+    const periodDays = zoom === 'weeks' ? 7 : zoom === 'months' ? 30 : zoom === 'quarters' ? 91 : 365;
+    const periods = Math.ceil(max / periodDays) + 1;
     return Math.max(periods * periodDays, 3 * periodDays);
   }
 
