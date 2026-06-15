@@ -289,7 +289,7 @@
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
         <input type="checkbox" id="toggle-auto-fit"> Auto-fit
       </label>
-      <div style="flex:1"></div>
+      <span id="roadmap-title-display" style="flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--text);opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 16px;pointer-events:none;"></span>
       <label style="font-size:12px;display:flex;align-items:center;gap:5px;flex-shrink:0">
         Start:
         <input type="date" id="gantt-start-date">
@@ -3598,6 +3598,7 @@ const GanttViewController = (() => {
 
   let zoom         = 'months';
   let autoFit = false;
+  let _autoPhased = false;
   let collapsed    = new Set();
   let selectedId   = null;
   let bars         = []; // { targetId, x, y, w, h }
@@ -3637,6 +3638,22 @@ const GanttViewController = (() => {
     if (!hex || hex.length < 7) return `rgba(100,100,100,${a})`;
     const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
     return `rgba(${r},${g},${b},${a})`;
+  }
+
+  function contrastColor(hex) {
+    if (!hex || hex.length < 7) return '#ffffff';
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return (0.299*r + 0.587*g + 0.114*b) > 140 ? '#1e293b' : '#ffffff';
+  }
+
+  function shouldAutoPhase() {
+    if (!AppState.upgradeTargets.length) return false;
+    if (!AppState.upgradeTargets.every(t => (t.gantt?.startOffset || 0) === 0)) return false;
+    return AppState.edges.some(edge => {
+      const src = AppState.nodes.find(n => n.id === edge.sourceNodeId);
+      const tgt = AppState.nodes.find(n => n.id === edge.targetNodeId);
+      return src?.upgradeTargetId && tgt?.upgradeTargetId && src.upgradeTargetId !== tgt.upgradeTargetId;
+    });
   }
 
   function buildRows() {
@@ -3912,8 +3929,8 @@ const GanttViewController = (() => {
         ctx.strokeStyle = cc; ctx.lineWidth = isSel ? 2.5 : 1;
         ctx.stroke();
 
-        // Bar text
-        ctx.fillStyle = '#ffffff';
+        // Bar text — dark on light categories, white on dark
+        ctx.fillStyle = contrastColor(cc);
         ctx.font = '11px system-ui,sans-serif';
         ctx.textBaseline = 'middle';
         const tx2 = bx + HANDLE_W + 4, maxTW = bw - HANDLE_W*2 - 8;
@@ -4179,6 +4196,19 @@ const GanttViewController = (() => {
       body.style.minWidth = '';
       return;
     }
+    // Sync toolbar title
+    const titleEl = document.getElementById('roadmap-title-display');
+    if (titleEl) titleEl.textContent = AppState.meta.roadmapTitle || '';
+
+    // Auto-phase once if all targets are at offset 0 and dep edges exist
+    if (!_autoPhased) {
+      _autoPhased = true;
+      if (shouldAutoPhase()) {
+        AutoPhasingEngine.run();
+        showToast('Auto-phasing applied based on task dependencies.', 'info', 3000);
+      }
+    }
+
     const rows = buildRows();
     if (!rows.some(r => r.type==='task')) {
       body.innerHTML = '<div class="canvas-placeholder"><div class="placeholder-icon">&#9635;</div><p>Roadmap</p><p class="placeholder-sub">Add upgrade targets to systems in the Network Diagram to see the roadmap.</p></div>';
@@ -4223,7 +4253,9 @@ const GanttViewController = (() => {
     render();
   }
 
-  return { init, refresh };
+  function resetAutoPhase() { _autoPhased = false; }
+
+  return { init, refresh, resetAutoPhase };
 })();
 
 // ================================================================
@@ -4292,6 +4324,7 @@ const ExportController = (() => {
       edges: Array.isArray(parsed.edges) ? parsed.edges : []
     };
     ThemeController.apply();
+    GanttViewController.resetAutoPhase();
     AppController.refreshAll();
     showToast('Project loaded.', 'success');
     AutoSave.schedule();
@@ -5033,6 +5066,8 @@ const AppController = (() => {
   }
 
   function updateTitles() {
+    const titleEl = document.getElementById('roadmap-title-display');
+    if (titleEl) titleEl.textContent = AppState.meta.roadmapTitle || '';
     ThemeController.apply();
   }
 
