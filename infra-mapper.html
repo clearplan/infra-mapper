@@ -2927,7 +2927,7 @@ const NodeManager = (() => {
     if (!data.name?.trim() || !data.category?.trim()) return null;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    const node = { id: uuid(), name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode || false, iconDataUrl: data.iconDataUrl || null, iconKey: data.iconKey || null, position: data.position || { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 } };
+    const node = { id: uuid(), name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode || false, iconDataUrl: data.iconDataUrl || null, iconKey: data.iconKey || null, iconSvg: data.iconSvg || null, iconViewBox: data.iconViewBox || null, position: data.position || { x: 150 + Math.random() * 500, y: 150 + Math.random() * 300 } };
     AppState.nodes.push(node);
     touchState(); AutoSave.schedule();
     return node;
@@ -2938,7 +2938,7 @@ const NodeManager = (() => {
     if (idx === -1 || !data.name?.trim() || !data.category?.trim()) return false;
     if (!AppState.categories.includes(data.category)) CategoryManager.add(data.category);
     StateHistory.push();
-    AppState.nodes[idx] = { ...AppState.nodes[idx], name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode !== undefined ? data.isKeyNode : (AppState.nodes[idx].isKeyNode || false), iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl, iconKey: data.iconKey !== undefined ? data.iconKey : (AppState.nodes[idx].iconKey || null) };
+    AppState.nodes[idx] = { ...AppState.nodes[idx], name: data.name.trim(), category: data.category.trim(), upgradeTargetId: data.upgradeTargetId || null, isKeyNode: data.isKeyNode !== undefined ? data.isKeyNode : (AppState.nodes[idx].isKeyNode || false), iconDataUrl: data.iconDataUrl !== undefined ? data.iconDataUrl : AppState.nodes[idx].iconDataUrl, iconKey: data.iconKey !== undefined ? data.iconKey : (AppState.nodes[idx].iconKey || null), iconSvg: data.iconSvg !== undefined ? data.iconSvg : (AppState.nodes[idx].iconSvg || null), iconViewBox: data.iconViewBox !== undefined ? data.iconViewBox : (AppState.nodes[idx].iconViewBox || null) };
     touchState(); AutoSave.schedule();
     return true;
   }
@@ -3142,12 +3142,12 @@ const DiagramViewController = (() => {
 
   // ── SVG Node Card ──────────────────────────────────────────
   function buildNodeSVG(opts) {
-    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, iconKey, isFuture, isUnchanged, replacesCount, customWidth, isKeyNode, keyNodeStyle } = opts;
+    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, iconKey, iconSvg, iconViewBox, isFuture, isUnchanged, replacesCount, customWidth, isKeyNode, keyNodeStyle } = opts;
     const theme = ThemeController.active();
 
     const W = Math.max(120, customWidth || 220), LB = 4, PL = LB + 10, PR = 10, PV = 10;
     const MAX_CONN = 5;
-    const hasIcon = !!(iconKey || iconDataUrl);
+    const hasIcon = !!(iconSvg || iconKey || iconDataUrl);
     const ICON_H = hasIcon ? 30 : 0, ICON_GAP = hasIcon ? 6 : 0;
     const NAME_H = 18, CAT_H = 15;
     const shown = Math.min(connections.length, MAX_CONN);
@@ -3201,7 +3201,11 @@ const DiagramViewController = (() => {
 
     let y = PV;
     if (hasIcon) {
-      if (iconKey && ICON_LIBRARY[iconKey]) {
+      if (iconSvg) {
+        const vb = iconViewBox || '0 0 24 24';
+        const coloredBody = iconSvg.replace(/__ICON_COLOR__/g, muted);
+        p.push(`<svg xmlns="http://www.w3.org/2000/svg" x="${PL}" y="${y}" width="28" height="28" viewBox="${vb}" fill="${muted}" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${coloredBody}</svg>`);
+      } else if (iconKey && ICON_LIBRARY[iconKey]) {
         const sc = (28/24).toFixed(4);
         p.push(`<g transform="translate(${PL},${y}) scale(${sc})" fill="none" stroke="${muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[iconKey]}</g>`);
       } else if (iconDataUrl) {
@@ -3264,6 +3268,8 @@ const DiagramViewController = (() => {
       hasUpgrade: !!target, upgradeTargetName: target?.name || '',
       connections, iconDataUrl: node.iconDataUrl || null,
       iconKey: node.iconKey || null,
+      iconSvg: node.iconSvg || null,
+      iconViewBox: node.iconViewBox || null,
       isFuture: false, isUnchanged: false, replacesCount: 0,
       customWidth: node.customWidth || null,
       isKeyNode: node.isKeyNode || false,
@@ -3365,6 +3371,9 @@ const DiagramViewController = (() => {
         hasUpgrade: false, upgradeTargetName: '',
         connections: [],
         iconDataUrl: fn.iconDataUrl || null,
+        iconKey: fn.iconKey || null,
+        iconSvg: fn.iconSvg || null,
+        iconViewBox: fn.iconViewBox || null,
         isFuture: !!fn.isFuture, isUnchanged: !!fn.isUnchanged, replacesCount: fn.replacesCount || 0
       });
       return { data: { id: fn.id, name: fn.name, category: fn.category, svgUri, w: width, h: height }, position: { ...(fn.position || { x: 300, y: 300 }) } };
@@ -4756,41 +4765,104 @@ const ModalController = (() => {
 
   // ── Icon Picker ──────────────────────────────────────────
   let _iconPickerCb = null;
+  let _pendingIconSvg = null;
+  let _pendingIconViewBox = null;
+
+  async function fetchIconSVG(prefix, name) {
+    try {
+      const resp = await fetch(`https://api.iconify.design/${prefix}/${name}.svg`);
+      if (!resp.ok) return null;
+      const text = await resp.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, 'image/svg+xml');
+      const svgEl = doc.querySelector('svg');
+      if (!svgEl) return null;
+      const viewBox = svgEl.getAttribute('viewBox') || '0 0 24 24';
+      const body = svgEl.innerHTML.replace(/currentColor/g, '__ICON_COLOR__');
+      return { viewBox, body };
+    } catch { return null; }
+  }
 
   function openIconPicker(callback) {
     _iconPickerCb = callback;
-    document.getElementById('icon-picker-search').value = '';
+    const searchEl = document.getElementById('icon-picker-search');
+    if (searchEl) searchEl.value = '';
     renderIconGrid('');
     open('modal-icon-picker');
   }
 
-  function renderIconGrid(filter) {
+  async function renderIconGrid(filter) {
     const grid = document.getElementById('icon-picker-grid');
     if (!grid) return;
-    grid.innerHTML = '';
-    const q = filter.toLowerCase().trim();
-    const keys = Object.keys(ICON_LIBRARY).filter(k => !q || k.includes(q));
-    if (!keys.length) {
-      grid.innerHTML = '<p style="color:var(--muted);font-size:12px;grid-column:1/-1;padding:8px 0">No icons match your search.</p>';
+
+    const q = filter.trim();
+
+    if (!q) {
+      grid.innerHTML = '';
+      const hint = document.createElement('p');
+      hint.style.cssText = 'grid-column:1/-1;color:var(--muted);font-size:11px;margin:0 0 8px';
+      hint.textContent = 'Built-in icons — type to search 200,000+ via Iconify';
+      grid.appendChild(hint);
+      Object.keys(ICON_LIBRARY).forEach(key => {
+        const cell = document.createElement('div');
+        cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .12s';
+        cell.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[key]}</svg><span style="font-size:10px;color:var(--muted);text-align:center;word-break:break-all;line-height:1.3">${key}</span>`;
+        cell.addEventListener('mouseenter', () => { cell.style.background = 'var(--bg)'; });
+        cell.addEventListener('mouseleave', () => { cell.style.background = ''; });
+        cell.addEventListener('click', () => {
+          if (_iconPickerCb) _iconPickerCb({ iconKey: key, iconSvg: null, iconViewBox: null });
+          _iconPickerCb = null;
+        });
+        grid.appendChild(cell);
+      });
       return;
     }
-    keys.forEach(key => {
-      const cell = document.createElement('div');
-      cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .12s';
-      cell.innerHTML = `<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON_LIBRARY[key]}</svg><span style="font-size:10px;color:var(--muted);text-align:center;word-break:break-all;line-height:1.3">${key}</span>`;
-      cell.addEventListener('mouseenter', () => { cell.style.background = 'var(--bg)'; });
-      cell.addEventListener('mouseleave', () => { cell.style.background = ''; });
-      cell.addEventListener('click', () => {
-        if (_iconPickerCb) _iconPickerCb(key);
-        _iconPickerCb = null;
-        // don't call close() here — callback calls open('modal-node-editor') itself
+
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--muted);font-size:13px">Searching…</div>';
+    try {
+      const resp = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(q)}&limit=60`);
+      if (!resp.ok) throw new Error('API error');
+      const data = await resp.json();
+      grid.innerHTML = '';
+      if (!data.icons?.length) {
+        grid.innerHTML = '<p style="grid-column:1/-1;color:var(--muted);font-size:12px;padding:8px 0">No icons found. Try a different term.</p>';
+        return;
+      }
+      const hint = document.createElement('p');
+      hint.style.cssText = 'grid-column:1/-1;color:var(--muted);font-size:11px;margin:0 0 8px';
+      hint.textContent = `${(data.total || data.icons.length).toLocaleString()} results — showing first ${data.icons.length}`;
+      grid.appendChild(hint);
+      data.icons.forEach(ref => {
+        const colonIdx = ref.indexOf(':');
+        if (colonIdx < 1) return;
+        const prefix = ref.slice(0, colonIdx);
+        const name   = ref.slice(colonIdx + 1);
+        const previewUrl = `https://api.iconify.design/${prefix}/${name}.svg?color=%2364748b`;
+        const cell = document.createElement('div');
+        cell.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .12s';
+        cell.innerHTML = `<img src="${previewUrl}" width="28" height="28" loading="lazy"><span style="font-size:10px;color:var(--muted);text-align:center;word-break:break-all;line-height:1.3;max-width:72px">${escapeHtml(name)}</span>`;
+        cell.addEventListener('mouseenter', () => { cell.style.background = 'var(--bg)'; });
+        cell.addEventListener('mouseleave', () => { cell.style.background = ''; });
+        cell.addEventListener('click', async () => {
+          cell.style.opacity = '0.5';
+          const result = await fetchIconSVG(prefix, name);
+          if (!result) { showToast('Failed to load icon.', 'error'); cell.style.opacity = ''; return; }
+          if (_iconPickerCb) _iconPickerCb({ iconKey: ref, iconSvg: result.body, iconViewBox: result.viewBox });
+          _iconPickerCb = null;
+        });
+        grid.appendChild(cell);
       });
-      grid.appendChild(cell);
-    });
+    } catch {
+      grid.innerHTML = '<p style="grid-column:1/-1;color:var(--muted);font-size:12px;padding:8px 0">Search failed. Check your connection.</p>';
+    }
   }
 
+  let _searchTimer = null;
   function bindIconPickerEvents() {
-    document.getElementById('icon-picker-search')?.addEventListener('input', e => renderIconGrid(e.target.value));
+    document.getElementById('icon-picker-search')?.addEventListener('input', e => {
+      clearTimeout(_searchTimer);
+      _searchTimer = setTimeout(() => renderIconGrid(e.target.value), 350);
+    });
     document.getElementById('btn-icon-picker-cancel')?.addEventListener('click', close);
   }
 
@@ -5027,9 +5099,18 @@ const ModalController = (() => {
     const iconKeyHid  = document.getElementById('node-icon-key-hidden');
     iconPrev.dataset.pending = '';
     iconPrev.src = ''; iconPrev.style.display = 'none';
-    if (iconSvgPrev) { iconSvgPrev.innerHTML = ''; iconSvgPrev.style.display = 'none'; }
+    if (iconSvgPrev) { iconSvgPrev.innerHTML = ''; iconSvgPrev.style.display = 'none'; iconSvgPrev.setAttribute('viewBox', '0 0 24 24'); }
     iconKeyHid.value = node?.iconKey || '';
-    if (node?.iconKey && ICON_LIBRARY[node.iconKey]) {
+    _pendingIconSvg = node?.iconSvg || null;
+    _pendingIconViewBox = node?.iconViewBox || null;
+    if (node?.iconSvg) {
+      if (iconSvgPrev) {
+        iconSvgPrev.setAttribute('viewBox', node.iconViewBox || '0 0 24 24');
+        iconSvgPrev.innerHTML = node.iconSvg.replace(/__ICON_COLOR__/g, 'var(--text)');
+        iconSvgPrev.style.display = 'block';
+      }
+      if (iconEmpty) iconEmpty.style.display = 'none';
+    } else if (node?.iconKey && ICON_LIBRARY[node.iconKey]) {
       if (iconSvgPrev) { iconSvgPrev.innerHTML = ICON_LIBRARY[node.iconKey]; iconSvgPrev.style.display = 'block'; }
       if (iconEmpty) iconEmpty.style.display = 'none';
     } else if (node?.iconDataUrl) {
@@ -5146,14 +5227,25 @@ const ModalController = (() => {
     });
 
     document.getElementById('btn-choose-icon')?.addEventListener('click', () => {
-      openIconPicker(iconKey => {
+      openIconPicker(({ iconKey, iconSvg, iconViewBox }) => {
         const svgPrev  = document.getElementById('node-icon-svg-preview');
         const imgPrev  = document.getElementById('node-icon-preview');
         const empIcon  = document.getElementById('node-icon-empty');
         const keyHid   = document.getElementById('node-icon-key-hidden');
-        if (svgPrev)  { svgPrev.innerHTML = ICON_LIBRARY[iconKey] || ''; svgPrev.style.display = 'block'; }
+        if (svgPrev) {
+          if (iconSvg) {
+            svgPrev.setAttribute('viewBox', iconViewBox || '0 0 24 24');
+            svgPrev.innerHTML = iconSvg.replace(/__ICON_COLOR__/g, 'var(--text)');
+          } else {
+            svgPrev.setAttribute('viewBox', '0 0 24 24');
+            svgPrev.innerHTML = ICON_LIBRARY[iconKey] || '';
+          }
+          svgPrev.style.display = 'block';
+        }
         if (imgPrev)  { imgPrev.src = ''; imgPrev.style.display = 'none'; imgPrev.dataset.pending = '__removed__'; }
         if (keyHid)   keyHid.value = iconKey;
+        _pendingIconSvg = iconSvg || null;
+        _pendingIconViewBox = iconViewBox || null;
         if (empIcon)  empIcon.style.display = 'none';
         open('modal-node-editor');
       });
@@ -5169,8 +5261,9 @@ const ModalController = (() => {
         const empIcon  = document.getElementById('node-icon-empty');
         const keyHid   = document.getElementById('node-icon-key-hidden');
         imgPrev.src = evt.target.result; imgPrev.style.display = 'block'; imgPrev.dataset.pending = evt.target.result;
-        if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; }
+        if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; svgPrev.setAttribute('viewBox', '0 0 24 24'); }
         if (keyHid)   keyHid.value = '';
+        _pendingIconSvg = null; _pendingIconViewBox = null;
         if (empIcon)  empIcon.style.display = 'none';
       };
       reader.readAsDataURL(file);
@@ -5182,8 +5275,9 @@ const ModalController = (() => {
       const empIcon  = document.getElementById('node-icon-empty');
       const keyHid   = document.getElementById('node-icon-key-hidden');
       imgPrev.src = ''; imgPrev.style.display = 'none'; imgPrev.dataset.pending = '__removed__';
-      if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; }
+      if (svgPrev)  { svgPrev.innerHTML = ''; svgPrev.style.display = 'none'; svgPrev.setAttribute('viewBox', '0 0 24 24'); }
       if (keyHid)   keyHid.value = '';
+      _pendingIconSvg = null; _pendingIconViewBox = null;
       if (empIcon)  empIcon.style.display = 'block';
     });
 
@@ -5207,15 +5301,15 @@ const ModalController = (() => {
     const prev = document.getElementById('node-icon-preview');
     const pending = prev?.dataset.pending;
 
-    let iconDataUrl, iconKey;
+    let iconDataUrl, iconKey, iconSvg, iconViewBox;
     if (pendingKey) {
-      iconKey = pendingKey; iconDataUrl = null;
+      iconKey = pendingKey; iconSvg = _pendingIconSvg; iconViewBox = _pendingIconViewBox; iconDataUrl = null;
     } else if (pending === '__removed__') {
-      iconDataUrl = null; iconKey = null;
+      iconDataUrl = null; iconKey = null; iconSvg = null; iconViewBox = null;
     } else if (pending) {
-      iconDataUrl = pending; iconKey = null;
+      iconDataUrl = pending; iconKey = null; iconSvg = null; iconViewBox = null;
     } else {
-      iconDataUrl = undefined; iconKey = undefined;
+      iconDataUrl = undefined; iconKey = undefined; iconSvg = undefined; iconViewBox = undefined;
     }
 
     if (!document.getElementById('node-name').value.trim()) { showToast('Name is required.', 'error'); return; }
@@ -5227,7 +5321,9 @@ const ModalController = (() => {
       upgradeTargetId: document.getElementById('node-upgrade-target').value || null,
       isKeyNode: document.getElementById('node-is-key')?.checked || false,
       iconDataUrl,
-      iconKey
+      iconKey,
+      iconSvg,
+      iconViewBox
     };
 
     let savedNodeId = nodeId;
