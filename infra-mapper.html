@@ -289,6 +289,9 @@
     <div id="roadmap-toolbar">
       <button id="btn-auto-phase" class="btn-toolbar">&#8634; Re-Auto-Phase</button>
       <span class="toolbar-sep"></span>
+      <button id="btn-add-manual-task" class="btn-toolbar">+ Add Task</button>
+      <button id="btn-swimlanes" class="btn-toolbar">Swimlanes</button>
+      <span class="toolbar-sep"></span>
       <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
         <input type="checkbox" id="toggle-auto-fit"> Auto-fit
       </label>
@@ -616,6 +619,42 @@
     </div>
     <div class="modal-footer">
       <button id="btn-icon-picker-cancel" class="btn-secondary">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Manual Task Editor Modal -->
+  <div id="modal-manual-task" class="modal hidden">
+    <div class="modal-header">
+      <h2 id="manual-task-modal-title">Add Task</h2>
+      <button class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="manual-task-id">
+      <div class="form-group">
+        <label>Task name</label>
+        <input type="text" id="manual-task-name" placeholder="e.g. Security audit, UAT support…">
+      </div>
+      <div class="form-group">
+        <label>Swimlane</label>
+        <select id="manual-task-category" style="width:100%"></select>
+      </div>
+      <div style="display:flex;gap:12px">
+        <div class="form-group" style="flex:1">
+          <label>Start date</label>
+          <input type="date" id="manual-task-start-date" style="width:100%;box-sizing:border-box">
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>Duration (days)</label>
+          <input type="number" id="manual-task-days" min="1" value="30" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <p class="hint-text" style="margin-top:4px">Manual tasks are not linked to nodes. They appear with a dashed bar to distinguish them from upgrade tasks.</p>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:8px;align-items:center">
+      <button id="btn-manual-task-save" class="btn-primary">Save</button>
+      <button id="btn-manual-task-cancel" class="btn-secondary">Cancel</button>
+      <span style="flex:1"></span>
+      <button id="btn-manual-task-delete" class="btn-sm danger" style="display:none">Delete Task</button>
     </div>
   </div>
 
@@ -2771,6 +2810,7 @@ let AppState = {
   },
   categories: [],
   upgradeTargets: [],
+  manualTasks: [],
   nodes: [],
   edges: []
 };
@@ -2916,6 +2956,41 @@ const UpgradeTargetManager = (() => {
   function nodesUsingTarget(targetId) { return AppState.nodes.filter(n => n.upgradeTargetId === targetId); }
 
   return { getAll, getById, add, update, remove, nodesUsingTarget, durationToDays };
+})();
+
+// ================================================================
+// 6b. MANUAL TASK MANAGER
+// ================================================================
+const ManualTaskManager = (() => {
+  function add(data) {
+    if (!data.name?.trim() || !data.category?.trim()) return null;
+    StateHistory.push();
+    const task = { id: uuid(), name: data.name.trim(), category: data.category.trim(),
+      gantt: { startOffset: data.gantt?.startOffset || 0, durationDays: data.gantt?.durationDays || 30, deadline: data.gantt?.deadline || null } };
+    AppState.manualTasks.push(task);
+    touchState(); AutoSave.schedule();
+    return task;
+  }
+  function update(id, data) {
+    const idx = AppState.manualTasks.findIndex(t => t.id === id);
+    if (idx === -1) return false;
+    StateHistory.push();
+    const t = AppState.manualTasks[idx];
+    AppState.manualTasks[idx] = { ...t, name: data.name?.trim() ?? t.name, category: data.category?.trim() ?? t.category,
+      gantt: { startOffset: data.gantt?.startOffset ?? t.gantt.startOffset, durationDays: data.gantt?.durationDays ?? t.gantt.durationDays, deadline: data.gantt?.deadline !== undefined ? data.gantt.deadline : t.gantt.deadline } };
+    touchState(); AutoSave.schedule();
+    return true;
+  }
+  function remove(id) {
+    const idx = AppState.manualTasks.findIndex(t => t.id === id);
+    if (idx === -1) return false;
+    StateHistory.push();
+    AppState.manualTasks.splice(idx, 1);
+    touchState(); AutoSave.schedule();
+    return true;
+  }
+  function getById(id) { return AppState.manualTasks.find(t => t.id === id) || null; }
+  return { add, update, remove, getById };
 })();
 
 // ================================================================
@@ -3803,7 +3878,7 @@ const GanttViewController = (() => {
   let _autoPhased = false;
   let collapsed    = new Set();
   let selectedId   = null;
-  let bars         = []; // { targetId, x, y, w, h }
+  let bars         = []; // { targetId, isManual, x, y, w, h }
   let dragState    = null;
   let tooltipEl    = null;
   let ppdScale     = 1.0; // x-axis zoom multiplier (Ctrl+wheel)
@@ -3830,9 +3905,9 @@ const GanttViewController = (() => {
   }
 
   function totalDays() {
-    const ts = AppState.upgradeTargets;
-    if (!ts.length) return 365;
-    const max = Math.max(...ts.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
+    const all = [...AppState.upgradeTargets, ...(AppState.manualTasks || [])];
+    if (!all.length) return 365;
+    const max = Math.max(...all.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
     const periodDays = zoom === 'weeks' ? 7 : zoom === 'months' ? 30 : zoom === 'quarters' ? 91 : 365;
     const periods = Math.ceil(max / periodDays) + 1;
     return Math.max(periods * periodDays, 3 * periodDays);
@@ -3862,13 +3937,19 @@ const GanttViewController = (() => {
 
   function buildRows() {
     const rows = [];
-    const cats = [...new Set([...AppState.categories, ...AppState.upgradeTargets.map(t => t.category)])];
+    const cats = [...new Set([
+      ...AppState.categories,
+      ...AppState.upgradeTargets.map(t => t.category),
+      ...(AppState.manualTasks || []).map(t => t.category)
+    ])];
     for (const cat of cats) {
       const targets = AppState.upgradeTargets.filter(t => t.category === cat);
-      if (!targets.length) continue;
+      const manual  = (AppState.manualTasks || []).filter(t => t.category === cat);
+      if (!targets.length && !manual.length) continue;
       rows.push({ type: 'swimlane', category: cat });
       if (!collapsed.has(cat)) {
-        for (const t of targets) rows.push({ type: 'task', target: t });
+        for (const t of targets) rows.push({ type: 'task',   target: t });
+        for (const t of manual)  rows.push({ type: 'manual', task:   t });
       }
     }
     return rows;
@@ -3948,7 +4029,10 @@ const GanttViewController = (() => {
           document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
         });
         div.addEventListener('dragover', e => {
-          if (!dragSrc || dragSrc.type !== 'swimlane' || dragSrc.cat === cat) return;
+          if (!dragSrc) return;
+          const ok = (dragSrc.type === 'swimlane' && dragSrc.cat !== cat) ||
+                     (dragSrc.type === 'manual' && dragSrc.taskCat !== cat);
+          if (!ok) return;
           e.preventDefault();
           div.classList.add('drag-over-swimlane');
         });
@@ -3956,17 +4040,25 @@ const GanttViewController = (() => {
         div.addEventListener('drop', e => {
           e.preventDefault();
           div.classList.remove('drag-over-swimlane');
-          if (!dragSrc || dragSrc.type !== 'swimlane' || dragSrc.cat === cat) return;
-          const from = AppState.categories.indexOf(dragSrc.cat);
-          const to   = AppState.categories.indexOf(cat);
-          if (from !== -1 && to !== -1) {
-            const [removed] = AppState.categories.splice(from, 1);
-            AppState.categories.splice(to, 0, removed);
-            StateHistory.push(); touchState(); AutoSave.schedule();
+          if (!dragSrc) return;
+          if (dragSrc.type === 'swimlane' && dragSrc.cat !== cat) {
+            const from = AppState.categories.indexOf(dragSrc.cat);
+            const to   = AppState.categories.indexOf(cat);
+            if (from !== -1 && to !== -1) {
+              const [removed] = AppState.categories.splice(from, 1);
+              AppState.categories.splice(to, 0, removed);
+              StateHistory.push(); touchState(); AutoSave.schedule();
+            }
+          } else if (dragSrc.type === 'manual' && dragSrc.taskCat !== cat) {
+            const idx = AppState.manualTasks.findIndex(u => u.id === dragSrc.taskId);
+            if (idx !== -1) {
+              AppState.manualTasks[idx].category = cat;
+              StateHistory.push(); touchState(); AutoSave.schedule();
+            }
           }
           dragSrc = null; render();
         });
-      } else {
+      } else if (row.type === 'task') {
         const t = row.target;
         const isSel = t.id === selectedId;
         const accentColor = theme.accentColor || '#3b82f6';
@@ -4009,6 +4101,57 @@ const GanttViewController = (() => {
             const [removed] = AppState.upgradeTargets.splice(fromIdx, 1);
             const newTo = AppState.upgradeTargets.findIndex(u => u.id === t.id);
             AppState.upgradeTargets.splice(newTo, 0, removed);
+            StateHistory.push(); touchState(); AutoSave.schedule();
+          }
+          dragSrc = null; render();
+        });
+      } else if (row.type === 'manual') {
+        const t = row.task;
+        const isSel = t.id === selectedId;
+        const cc = CategoryManager.getSwimlaneColor(t.category);
+        if (isSel) div.style.background = hexAlpha(theme.accentColor || '#3b82f6', 0.1);
+        div.style.cursor = 'pointer';
+        div.innerHTML =
+          `<span style="font-size:12px;color:${muted};opacity:.35;cursor:grab;flex-shrink:0;margin-right:2px;line-height:1;user-select:none">⠿</span>` +
+          `<span style="font-size:11px;color:${cc};flex-shrink:0;margin-right:3px;font-weight:700;line-height:1">+</span>` +
+          `<span style="font-size:12px;color:${txt};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-style:italic;">${escapeHtml(t.name)}</span>` +
+          `<span class="gantt-row-pencil" title="Edit task" style="font-size:14px;color:${muted};opacity:0;cursor:pointer;flex-shrink:0;padding:0 4px;transition:opacity .15s;line-height:1;user-select:none">✎</span>`;
+        div.addEventListener('mouseenter', () => { div.querySelector('.gantt-row-pencil')?.style.setProperty('opacity','1'); });
+        div.addEventListener('mouseleave', () => { div.querySelector('.gantt-row-pencil')?.style.setProperty('opacity','0'); });
+        div.addEventListener('click', e => {
+          if (e.target.closest('.gantt-row-pencil')) { ModalController.openManualTaskEditor(t.id); }
+          else { selectedId = t.id; reDrawMain(); showTooltip(t.id); }
+        });
+        div.addEventListener('dblclick', () => ModalController.openManualTaskEditor(t.id));
+        div.draggable = true;
+        div.addEventListener('dragstart', e => {
+          dragSrc = { type: 'manual', taskId: t.id, taskCat: t.category };
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => div.classList.add('dragging'), 0);
+        });
+        div.addEventListener('dragend', () => {
+          dragSrc = null;
+          div.classList.remove('dragging');
+          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+        });
+        div.addEventListener('dragover', e => {
+          if (!dragSrc || dragSrc.type !== 'manual' || dragSrc.taskId === t.id) return;
+          e.preventDefault();
+          div.classList.add('drag-over-top');
+        });
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top'));
+        div.addEventListener('drop', e => {
+          e.preventDefault();
+          div.classList.remove('drag-over-top');
+          if (!dragSrc || dragSrc.type !== 'manual' || dragSrc.taskId === t.id) return;
+          const fromIdx = AppState.manualTasks.findIndex(u => u.id === dragSrc.taskId);
+          const toIdx   = AppState.manualTasks.findIndex(u => u.id === t.id);
+          if (fromIdx !== -1 && toIdx !== -1) {
+            if (AppState.manualTasks[fromIdx].category !== t.category)
+              AppState.manualTasks[fromIdx].category = t.category;
+            const [removed] = AppState.manualTasks.splice(fromIdx, 1);
+            const newTo = AppState.manualTasks.findIndex(u => u.id === t.id);
+            AppState.manualTasks.splice(newTo, 0, removed);
             StateHistory.push(); touchState(); AutoSave.schedule();
           }
           dragSrc = null; render();
@@ -4119,6 +4262,7 @@ const GanttViewController = (() => {
 
         if (collapsed.has(row.category)) {
           const catTargets = AppState.upgradeTargets.filter(t => t.category === row.category);
+          const catManual  = (AppState.manualTasks || []).filter(t => t.category === row.category);
           if (catTargets.length) {
             const minStart = Math.min(...catTargets.map(t => t.gantt?.startOffset || 0));
             const maxEnd   = Math.max(...catTargets.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
@@ -4143,8 +4287,32 @@ const GanttViewController = (() => {
             }
             ctx.restore();
           }
+          if (catManual.length) {
+            const minStart = Math.min(...catManual.map(t => t.gantt?.startOffset || 0));
+            const maxEnd   = Math.max(...catManual.map(t => (t.gantt?.startOffset||0) + (t.gantt?.durationDays||30)));
+            const bx = minStart * p;
+            const bw = Math.max((maxEnd - minStart) * p, 4);
+            const PAD = 6, by2 = y + PAD, bh = rh - PAD * 2;
+            ctx.save();
+            roundRect(ctx, bx, by2, bw, bh, 3);
+            ctx.fillStyle = hexAlpha(cc, 0.2);
+            ctx.fill();
+            ctx.setLineDash([4, 3]);
+            ctx.strokeStyle = cc; ctx.lineWidth = 1; ctx.globalAlpha = 0.55;
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+            if (bw > 40) {
+              const label = `+${catManual.length}`;
+              ctx.fillStyle = cc; ctx.globalAlpha = 0.7;
+              ctx.font = '10px system-ui,sans-serif'; ctx.textBaseline = 'middle';
+              ctx.fillText(label, bx + 6, by2 + bh / 2);
+              ctx.globalAlpha = 1;
+            }
+            ctx.restore();
+          }
         }
-      } else {
+      } else if (row.type === 'task') {
         const t = row.target;
         const rowBg = i%2===0 ? (isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,0)')
                                : (isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.018)');
@@ -4177,7 +4345,7 @@ const GanttViewController = (() => {
           ctx.restore();
         }
 
-        bars.push({ targetId: t.id, x: bx, y: by2, w: bw, h: bh });
+        bars.push({ targetId: t.id, isManual: false, x: bx, y: by2, w: bw, h: bh });
 
         // Deadline marker
         const dl = t.gantt?.deadline;
@@ -4197,6 +4365,44 @@ const GanttViewController = (() => {
             ctx.restore();
           }
         }
+      } else if (row.type === 'manual') {
+        const t = row.task;
+        const rowBg = i%2===0 ? (isDark?'rgba(255,255,255,.02)':'rgba(0,0,0,0)')
+                               : (isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.018)');
+        ctx.fillStyle = rowBg; ctx.fillRect(0, y, W, rh);
+        ctx.strokeStyle = theme.borderColor||'#e2e8f0'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0,y+rh-.5); ctx.lineTo(W,y+rh-.5); ctx.stroke();
+
+        const bx = (t.gantt?.startOffset||0) * p;
+        const bw = Math.max((t.gantt?.durationDays||30) * p, HANDLE_W*2+10);
+        const PAD = 5;
+        const by2 = y + PAD, bh = rh - PAD*2;
+
+        const cc = CategoryManager.getSwimlaneColor(t.category);
+        const isSel = t.id === selectedId;
+        ctx.save();
+        roundRect(ctx, bx, by2, bw, bh, 4);
+        ctx.fillStyle = isSel ? hexAlpha(cc, 0.65) : hexAlpha(cc, 0.42);
+        ctx.fill();
+        ctx.setLineDash([5, 3]);
+        ctx.strokeStyle = cc; ctx.lineWidth = isSel ? 2 : 1.5; ctx.globalAlpha = 0.85;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.restore();
+
+        ctx.fillStyle = contrastColor(cc);
+        ctx.font = '11px system-ui,sans-serif';
+        ctx.textBaseline = 'middle';
+        const tx2 = bx + HANDLE_W + 4, maxTW = bw - HANDLE_W*2 - 8;
+        if (maxTW > 20) {
+          ctx.save();
+          ctx.beginPath(); ctx.rect(bx+1, by2, bw-2, bh); ctx.clip();
+          ctx.fillText(t.name, tx2, by2 + bh/2);
+          ctx.restore();
+        }
+
+        bars.push({ targetId: t.id, isManual: true, x: bx, y: by2, w: bw, h: bh });
       }
       y += rh;
     }
@@ -4273,10 +4479,13 @@ const GanttViewController = (() => {
     if (e.button !== 0) return;
     const hit = hitTest(e);
     if (!hit) return;
-    const target = AppState.upgradeTargets.find(t => t.id===hit.targetId);
+    const isManual = !!hit.bar.isManual;
+    const target = isManual
+      ? ManualTaskManager.getById(hit.targetId)
+      : AppState.upgradeTargets.find(t => t.id === hit.targetId);
     if (!target) return;
     e.preventDefault();
-    dragState = { type: hit.zone, targetId: hit.targetId, startX: e.clientX, origStart: target.gantt.startOffset, origDur: target.gantt.durationDays };
+    dragState = { type: hit.zone, targetId: hit.targetId, isManual, startX: e.clientX, origStart: target.gantt.startOffset, origDur: target.gantt.durationDays };
     const canvas = document.getElementById('gantt-main-canvas');
     if (canvas) canvas.style.cursor = dragState.type==='move' ? 'grabbing' : 'col-resize';
     document.addEventListener('mousemove', onDocMove);
@@ -4286,7 +4495,9 @@ const GanttViewController = (() => {
   function onDocMove(e) {
     if (!dragState) return;
     const delta = Math.round((e.clientX - dragState.startX) / ppd());
-    const target = AppState.upgradeTargets.find(t => t.id===dragState.targetId);
+    const target = dragState.isManual
+      ? ManualTaskManager.getById(dragState.targetId)
+      : AppState.upgradeTargets.find(t => t.id === dragState.targetId);
     if (!target) return;
 
     if (dragState.type === 'move') {
@@ -4310,9 +4521,10 @@ const GanttViewController = (() => {
     document.removeEventListener('mousemove', onDocMove);
     document.removeEventListener('mouseup',   onDocUp);
     if (dragState) {
-      // Keep estimatedDuration in sync with whatever the bar was dragged to
-      const target = AppState.upgradeTargets.find(t => t.id === dragState.targetId);
-      if (target) target.estimatedDuration = { value: target.gantt.durationDays, unit: 'days' };
+      if (!dragState.isManual) {
+        const target = AppState.upgradeTargets.find(t => t.id === dragState.targetId);
+        if (target) target.estimatedDuration = { value: target.gantt.durationDays, unit: 'days' };
+      }
       StateHistory.push();
       touchState(); AutoSave.schedule();
       dragState = null;
@@ -4329,13 +4541,17 @@ const GanttViewController = (() => {
 
   function onCanvasDblClick(e) {
     const hit = hitTest(e);
-    if (hit) ModalController.openGanttEdit(hit.targetId);
+    if (!hit) return;
+    if (hit.bar.isManual) ModalController.openManualTaskEditor(hit.targetId);
+    else ModalController.openGanttEdit(hit.targetId);
   }
 
   function onCanvasContextMenu(e) {
     e.preventDefault();
     const hit = hitTest(e);
-    if (hit) ModalController.openGanttEdit(hit.targetId);
+    if (!hit) return;
+    if (hit.bar.isManual) ModalController.openManualTaskEditor(hit.targetId);
+    else ModalController.openGanttEdit(hit.targetId);
   }
 
   function selectTarget(id) {
@@ -4353,11 +4569,15 @@ const GanttViewController = (() => {
   // ── Tooltip ───────────────────────────────────────────────────
   function showTooltip(targetId) {
     hideTooltip();
-    const target = AppState.upgradeTargets.find(t => t.id===targetId);
-    const bar    = bars.find(b => b.targetId===targetId);
+    const barEntry = bars.find(b => b.targetId === targetId);
+    const isManual = barEntry?.isManual || false;
+    const target = isManual
+      ? ManualTaskManager.getById(targetId)
+      : AppState.upgradeTargets.find(t => t.id === targetId);
+    const bar = barEntry;
     const mc     = document.getElementById('gantt-main-canvas');
     if (!target || !bar || !mc) return;
-    const nodes = UpgradeTargetManager.nodesUsingTarget(targetId);
+    const nodes = isManual ? [] : UpgradeTargetManager.nodesUsingTarget(targetId);
     const mRect = mc.getBoundingClientRect();
 
     tooltipEl = document.createElement('div');
@@ -4372,6 +4592,7 @@ const GanttViewController = (() => {
       `<div style="color:var(--muted)">Duration: ${target.gantt.durationDays} days</div>` +
       (target.gantt?.deadline ? `<div style="color:#ef4444;margin-top:2px">Deadline: ${fmtDate(new Date(target.gantt.deadline + 'T00:00:00'))}</div>` : '') +
       (nodes.length ? `<div style="color:var(--muted);margin-top:4px">Systems: ${nodes.map(n=>escapeHtml(n.name)).join(', ')}</div>` : '') +
+      (isManual ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;opacity:.8">+ Manual task</div>` : '') +
       `<div style="font-size:11px;color:var(--muted);margin-top:6px;opacity:.7">Double-click or right-click to edit</div>`;
     document.body.appendChild(tooltipEl);
 
@@ -4441,6 +4662,16 @@ const GanttViewController = (() => {
         AppState.meta.ganttPpdScale = ppdScale;
         touchState(); AutoSave.schedule(); render();
       }, { passive: false });
+    }
+    const addTaskBtn = document.getElementById('btn-add-manual-task');
+    if (addTaskBtn && !addTaskBtn._gwired) {
+      addTaskBtn._gwired = true;
+      addTaskBtn.addEventListener('click', () => ModalController.openManualTaskEditor(null));
+    }
+    const swimlanesBtn = document.getElementById('btn-swimlanes');
+    if (swimlanesBtn && !swimlanesBtn._gwired) {
+      swimlanesBtn._gwired = true;
+      swimlanesBtn.addEventListener('click', () => ModalController.openManageCategories());
     }
   }
 
@@ -4609,6 +4840,7 @@ const ExportController = (() => {
       },
       categories: Array.isArray(parsed.categories) ? parsed.categories : [],
       upgradeTargets: Array.isArray(parsed.upgradeTargets) ? parsed.upgradeTargets : [],
+      manualTasks: Array.isArray(parsed.manualTasks) ? parsed.manualTasks : [],
       nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
       edges: Array.isArray(parsed.edges) ? parsed.edges : []
     };
@@ -4891,6 +5123,70 @@ const ModalController = (() => {
       _searchTimer = setTimeout(() => renderIconGrid(e.target.value), 350);
     });
     document.getElementById('btn-icon-picker-cancel')?.addEventListener('click', close);
+  }
+
+  // ── Manual Task Editor ──────────────────────────────────────
+  function _ganttOffsetFromDate(dateStr) {
+    const start = new Date((AppState.meta.ganttStartDate || new Date().toISOString().slice(0,10)) + 'T00:00:00');
+    const sel   = new Date(dateStr + 'T00:00:00');
+    return Math.max(0, Math.round((sel - start) / 86400000));
+  }
+
+  function openManualTaskEditor(taskId) {
+    const task = taskId ? ManualTaskManager.getById(taskId) : null;
+    document.getElementById('manual-task-modal-title').textContent = task ? 'Edit Task' : 'Add Task';
+    document.getElementById('manual-task-id').value = taskId || '';
+    document.getElementById('manual-task-name').value = task?.name || '';
+
+    const catSel = document.getElementById('manual-task-category');
+    catSel.innerHTML = AppState.categories.map(c =>
+      `<option value="${escapeHtml(c)}"${task?.category === c ? ' selected' : ''}>${escapeHtml(c)}</option>`
+    ).join('');
+    if (!catSel.value && AppState.categories.length) catSel.value = AppState.categories[0];
+
+    const startOff = task?.gantt?.startOffset || 0;
+    const startD   = new Date((AppState.meta.ganttStartDate || new Date().toISOString().slice(0,10)) + 'T00:00:00');
+    startD.setDate(startD.getDate() + startOff);
+    document.getElementById('manual-task-start-date').value = startD.toISOString().slice(0,10);
+    document.getElementById('manual-task-days').value = task?.gantt?.durationDays || 30;
+
+    const delBtn = document.getElementById('btn-manual-task-delete');
+    if (delBtn) delBtn.style.display = task ? 'inline-block' : 'none';
+    open('modal-manual-task');
+  }
+
+  function bindManualTaskEvents() {
+    document.getElementById('btn-manual-task-save')?.addEventListener('click', () => {
+      const taskId   = document.getElementById('manual-task-id').value;
+      const name     = document.getElementById('manual-task-name').value.trim();
+      const category = document.getElementById('manual-task-category').value;
+      const dateStr  = document.getElementById('manual-task-start-date').value;
+      const days     = parseInt(document.getElementById('manual-task-days').value) || 30;
+      if (!name)     { showToast('Task name is required.', 'error'); return; }
+      if (!category) { showToast('Swimlane is required.', 'error'); return; }
+      const startOffset = _ganttOffsetFromDate(dateStr);
+      const gantt = { startOffset, durationDays: Math.max(1, days), deadline: null };
+      if (taskId) {
+        ManualTaskManager.update(taskId, { name, category, gantt });
+        showToast('Task updated.', 'success');
+      } else {
+        ManualTaskManager.add({ name, category, gantt });
+        showToast('Task added.', 'success');
+      }
+      GanttViewController.refresh();
+      close();
+    });
+    document.getElementById('btn-manual-task-cancel')?.addEventListener('click', close);
+    document.getElementById('btn-manual-task-delete')?.addEventListener('click', () => {
+      const taskId = document.getElementById('manual-task-id').value;
+      if (!taskId) return;
+      confirm(`Delete this task?`, () => {
+        ManualTaskManager.remove(taskId);
+        GanttViewController.refresh();
+        showToast('Task deleted.', 'success');
+        close();
+      });
+    });
   }
 
   // ── Settings ─────────────────────────────────────────────
@@ -5497,10 +5793,11 @@ const ModalController = (() => {
     bindIconPickerEvents();
     bindAddConnectionEvents();
     bindSetTargetEvents();
+    bindManualTaskEvents();
     document.querySelectorAll('.modal-close').forEach(btn => btn.addEventListener('click', close));
   }
 
-  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openGanttEdit, openNodeEditor, openAddConnection, openSetTarget, openIconPicker, init };
+  return { open, close, getActive, confirm, openSettings, openManageCategories, openManageTargets, openTargetEditor, openGanttEdit, openNodeEditor, openAddConnection, openSetTarget, openIconPicker, openManualTaskEditor, init };
 })();
 
 // ================================================================
