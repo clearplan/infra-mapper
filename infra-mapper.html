@@ -373,10 +373,6 @@
           <div class="color-row"><label>Accent Color</label><input type="color" id="custom-accent" value="#3b82f6"></div>
         </div>
       </div>
-      <div class="form-group" style="margin-top:14px">
-        <label>Category Colors</label>
-        <div id="category-swatches"></div>
-      </div>
       <div style="margin-top:8px">
         <button id="btn-settings-reset" class="btn-sm danger">Reset to defaults</button>
       </div>
@@ -5218,7 +5214,6 @@ const ModalController = (() => {
     document.getElementById('key-node-font-size').value    = String(kns.fontSize || 15);
     document.getElementById('key-node-show-badge').checked = kns.showBadge !== false;
 
-    renderCategorySwatches();
     open('modal-settings');
   }
 
@@ -5310,16 +5305,25 @@ const ModalController = (() => {
     list.innerHTML = '';
     if (!AppState.categories.length) { list.innerHTML = '<p class="muted-text">No categories yet.</p>'; return; }
     AppState.categories.forEach(cat => {
+      const color = AppState.meta.customTheme.swimlaneColors[cat] || DEFAULT_PALETTE[AppState.categories.indexOf(cat) % DEFAULT_PALETTE.length] || '#94a3b8';
       const row = document.createElement('div'); row.className = 'category-row';
-      row.innerHTML = `<input type="text" class="cat-name-input" value="${escapeHtml(cat)}" data-orig="${escapeHtml(cat)}"><button class="btn-sm btn-rename" data-cat="${escapeHtml(cat)}">&#10003;</button><button class="btn-sm danger btn-del-cat" data-cat="${escapeHtml(cat)}">&#215;</button>`;
+      row.innerHTML = `<input type="color" class="color-swatch cat-color-swatch" value="${color}" title="Color for ${escapeHtml(cat)}"><input type="text" class="cat-name-input" value="${escapeHtml(cat)}" data-orig="${escapeHtml(cat)}"><button class="btn-sm btn-rename" data-cat="${escapeHtml(cat)}">&#10003;</button><button class="btn-sm danger btn-del-cat" data-cat="${escapeHtml(cat)}">&#215;</button>`;
+      row.querySelector('.cat-color-swatch').addEventListener('change', e => {
+        AppState.meta.customTheme.swimlaneColors[cat] = e.target.value;
+        for (const k of ['light','dark','highContrast']) PRESET_THEMES[k].swimlaneColors[cat] = e.target.value;
+        ThemeController.apply();
+        DiagramViewController.refresh();
+        GanttViewController.refresh();
+        touchState(); AutoSave.schedule();
+      });
       list.appendChild(row);
     });
     list.querySelectorAll('.btn-rename').forEach(btn => btn.addEventListener('click', () => {
       const input = btn.previousElementSibling;
-      if (CategoryManager.rename(input.dataset.orig, input.value)) { renderCategoryList(); DiagramViewController.refresh(); }
+      if (CategoryManager.rename(input.dataset.orig, input.value)) { renderCategoryList(); DiagramViewController.refresh(); GanttViewController.refresh(); }
     }));
     list.querySelectorAll('.btn-del-cat').forEach(btn => btn.addEventListener('click', () => {
-      if (CategoryManager.remove(btn.dataset.cat)) { renderCategoryList(); DiagramViewController.refresh(); }
+      if (CategoryManager.remove(btn.dataset.cat)) { renderCategoryList(); DiagramViewController.refresh(); GanttViewController.refresh(); }
     }));
   }
 
