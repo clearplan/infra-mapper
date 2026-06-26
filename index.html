@@ -207,6 +207,7 @@
     @media print { #top-nav, #diagram-toolbar, #roadmap-toolbar, #future-state-banner, #category-filter-bar { display: none; } }
     .dragging { opacity: 0.4 !important; }
     .drag-over-top { border-top: 2px solid var(--accent) !important; background: rgba(59,130,246,.06) !important; }
+    .drag-over-bottom { border-bottom: 2px solid var(--accent) !important; background: rgba(59,130,246,.06) !important; }
     .drag-over-swimlane { outline: 2px solid var(--accent) !important; }
     #gantt-start-date { font-size:12px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);cursor:pointer; }
   </style>
@@ -272,9 +273,13 @@
       <button id="btn-filter-cats" class="btn-toolbar btn-toolbar-icon" title="Filter by category">&#9776;</button>
     </div>
     <div id="future-state-banner">
-      <strong>Future State (read-only)</strong>
-      <span style="color:inherit;opacity:.7">Showing projected architecture after all upgrades.</span>
+      <strong>Future State</strong>
+      <span style="color:inherit;opacity:.7">Showing projected architecture after all upgrades. Drag nodes to rearrange.</span>
       <button id="btn-back-to-current" class="btn-sm" style="margin-left:8px">&#8592; Back to Current</button>
+      <label style="font-size:11px;display:flex;align-items:center;gap:5px;cursor:pointer;flex-shrink:0;margin-left:10px;color:inherit">
+        <input type="checkbox" id="toggle-replaced-systems"> Show replaced systems
+      </label>
+      <button id="btn-reset-future-layout" class="btn-sm" title="Reset to auto-computed positions">Reset Layout</button>
       <div class="legend">
         <span class="legend-item"><span class="legend-dot" style="background:#0ea5e9"></span> Upgraded</span>
         <span class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span> Unchanged</span>
@@ -2727,6 +2732,21 @@ function escapeXml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
 
+const _measureCtx = (typeof document !== 'undefined') ? document.createElement('canvas').getContext('2d') : null;
+function truncateToWidth(str, maxWidthPx, font) {
+  const s = String(str ?? '');
+  if (!_measureCtx) return s;
+  _measureCtx.font = font;
+  if (_measureCtx.measureText(s).width <= maxWidthPx) return s;
+  let lo = 0, hi = s.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (_measureCtx.measureText(s.slice(0, mid) + '…').width <= maxWidthPx) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo > 0 ? s.slice(0, lo) + '…' : '…';
+}
+
 // ================================================================
 // 1. APP STATE
 // ================================================================
@@ -2818,7 +2838,11 @@ let AppState = {
     showConnections: true,
     keyNodeStyle: { ...KEY_NODE_DEFAULTS },
     diagramZoom: null,
-    diagramPan: null
+    diagramPan: null,
+    futureZoom: null,
+    futurePan: null,
+    futurePositions: {},
+    showReplacedSystems: false
   },
   categories: [],
   upgradeTargets: [],
@@ -3115,19 +3139,27 @@ const FutureStateComputer = (() => {
     const targetToFn = new Map();
     const nodeToFn = new Map();
 
+    const futurePositions = AppState.meta.futurePositions || {};
+
     for (const node of AppState.nodes) {
       if (node.upgradeTargetId) {
         const target = UpgradeTargetManager.getById(node.upgradeTargetId);
-        if (!target) { nodeToFn.set(node.id, { ...node, isUnchanged: true }); futureNodes.push({ ...node, isUnchanged: true }); continue; }
+        if (!target) {
+          const unchanged = { ...node, isUnchanged: true };
+          if (futurePositions[node.id]) unchanged.position = { ...futurePositions[node.id] };
+          nodeToFn.set(node.id, unchanged); futureNodes.push(unchanged); continue;
+        }
         if (!targetToFn.has(target.id)) {
-          targetToFn.set(target.id, { id: `future-${target.id}`, name: target.name, category: target.category, isFuture: true, replacesCount: 0, positions: [], sourceTargetId: target.id, upgradeTargetId: null });
+          targetToFn.set(target.id, { id: `future-${target.id}`, name: target.name, category: target.category, isFuture: true, replacesCount: 0, positions: [], replacedNames: [], sourceTargetId: target.id, upgradeTargetId: null });
         }
         const fn = targetToFn.get(target.id);
         fn.replacesCount++;
         fn.positions.push(node.position);
+        fn.replacedNames.push(node.name);
         nodeToFn.set(node.id, fn);
       } else {
         const unchanged = { ...node, isUnchanged: true };
+        if (futurePositions[node.id]) unchanged.position = { ...futurePositions[node.id] };
         nodeToFn.set(node.id, unchanged);
         futureNodes.push(unchanged);
       }
@@ -3135,6 +3167,7 @@ const FutureStateComputer = (() => {
 
     for (const [, fn] of targetToFn) {
       if (fn.positions.length) fn.position = { x: fn.positions.reduce((s,p) => s+p.x, 0)/fn.positions.length, y: fn.positions.reduce((s,p) => s+p.y, 0)/fn.positions.length };
+      if (futurePositions[fn.id]) fn.position = { ...futurePositions[fn.id] };
       futureNodes.push(fn);
     }
 
@@ -3232,22 +3265,26 @@ const DiagramViewController = (() => {
 
   // ── SVG Node Card ──────────────────────────────────────────
   function buildNodeSVG(opts) {
-    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, iconKey, iconSvg, iconViewBox, isFuture, isUnchanged, replacesCount, customWidth, isKeyNode, keyNodeStyle } = opts;
+    const { name, category, categoryColor, hasUpgrade, upgradeTargetName, connections, iconDataUrl, iconKey, iconSvg, iconViewBox, isFuture, isUnchanged, replacesCount, customWidth, isKeyNode, keyNodeStyle, replacedNames, showReplacedSystems } = opts;
     const theme = ThemeController.active();
 
     const W = Math.max(120, customWidth || 220), LB = 4, PL = LB + 10, PR = 10, PV = 10;
     const MAX_CONN = 5;
+    const MAX_REPLACED = 6;
     const hasIcon = !!(iconSvg || iconKey || iconDataUrl);
     const ICON_W = 28, ICON_GAP = hasIcon ? 10 : 0;
     const NAME_H = 18, CAT_H = 15;
     const HEADER_H = Math.max(hasIcon ? ICON_W : 0, NAME_H + CAT_H);
     const shown = Math.min(connections.length, MAX_CONN);
+    const showReplacedList = !!(isFuture && replacesCount > 1 && showReplacedSystems && (replacedNames||[]).length);
+    const replacedShown = showReplacedList ? Math.min(replacedNames.length, MAX_REPLACED) : 0;
+    const REPLACED_H = showReplacedList ? (14 + replacedShown * 14 + (replacedNames.length > MAX_REPLACED ? 14 : 0)) : 0;
     const hasSep = hasUpgrade || connections.length > 0;
     const SEP_H = hasSep ? 14 : 0;
     const BADGE_H = hasUpgrade ? 22 : 0;
     const MORE_H = connections.length > MAX_CONN ? 14 : 0;
     const CONN_H = shown * 15;
-    const H = PV + HEADER_H + SEP_H + BADGE_H + CONN_H + MORE_H + PV;
+    const H = PV + HEADER_H + REPLACED_H + SEP_H + BADGE_H + CONN_H + MORE_H + PV;
 
     const surf  = theme.surface    || '#ffffff';
     const text  = theme.textColor  || '#1e293b';
@@ -3308,16 +3345,29 @@ const DiagramViewController = (() => {
     }
 
     const nameFontSize = kns ? (kns.fontSize || 15) : 13;
-    const nameMax = hasIcon ? Math.round(17 * W / 220) : Math.round(22 * W / 220);
-    const nameStr = name.length > nameMax ? name.slice(0, nameMax-1)+'…' : name;
+    const headerAvailW = W - textX - PR;
+    const nameStr = truncateToWidth(name, headerAvailW, `700 ${nameFontSize}px system-ui,-apple-system,sans-serif`);
     const nameColor = isUnchanged ? muted : text;
     p.push(`<text x="${textX}" y="${y+13}" font-family="system-ui,-apple-system,sans-serif" font-size="${nameFontSize}" font-weight="700" fill="${nameColor}">${escapeXml(nameStr)}</text>`);
 
-    const catMax = hasIcon ? Math.round(22 * W / 220) : Math.round(28 * W / 220);
-    const catStr = category.length > catMax ? category.slice(0, catMax-1)+'…' : category;
+    const catStr = truncateToWidth(category, headerAvailW, '11px system-ui,-apple-system,sans-serif');
     p.push(`<text x="${textX}" y="${y+NAME_H+11}" font-family="system-ui,-apple-system,sans-serif" font-size="11" fill="${muted}">${escapeXml(catStr)}</text>`);
 
     y += HEADER_H;
+
+    if (showReplacedList) {
+      p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="${muted}">Replaced systems:</text>`);
+      y += 14;
+      replacedNames.slice(0, MAX_REPLACED).forEach(rn => {
+        const tr = truncateToWidth(`• ${rn}`, W-PL-PR, '11px system-ui,sans-serif');
+        p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="11" fill="${muted}">${escapeXml(tr)}</text>`);
+        y += 14;
+      });
+      if (replacedNames.length > MAX_REPLACED) {
+        p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="10" fill="${muted}">+${replacedNames.length-MAX_REPLACED} more…</text>`);
+        y += 14;
+      }
+    }
 
     if (hasSep) {
       y += 5;
@@ -3326,16 +3376,16 @@ const DiagramViewController = (() => {
     }
 
     if (hasUpgrade) {
-      const bText = `↗ ${(upgradeTargetName||'Target').slice(0,22)}`;
+      const bText = `↗ ${truncateToWidth(upgradeTargetName||'Target', W-PL-PR-10, '11px system-ui,sans-serif')}`;
       p.push(`<rect x="${PL}" y="${y}" width="${W-PL-PR}" height="18" rx="3" fill="${uhl}"/>`);
       p.push(`<text x="${PL+5}" y="${y+13}" font-family="system-ui,sans-serif" font-size="11" fill="#92400e">${escapeXml(bText)}</text>`);
       y += BADGE_H;
     }
 
-    const connMax = Math.round(26 * W / 220);
+    const connAvailW = W - PL - PR;
     connections.slice(0, MAX_CONN).forEach(conn => {
       const full = `${conn.icon} ${conn.text}${conn.label ? ` — ${conn.label}` : ''}`;
-      const tr = full.length > connMax ? full.slice(0, connMax-1)+'…' : full;
+      const tr = truncateToWidth(full, connAvailW, '11px system-ui,sans-serif');
       p.push(`<text x="${PL}" y="${y+11}" font-family="system-ui,sans-serif" font-size="11" fill="${muted}">${escapeXml(tr)}</text>`);
       y += 15;
     });
@@ -3467,7 +3517,9 @@ const DiagramViewController = (() => {
         iconKey: fn.iconKey || null,
         iconSvg: fn.iconSvg || null,
         iconViewBox: fn.iconViewBox || null,
-        isFuture: !!fn.isFuture, isUnchanged: !!fn.isUnchanged, replacesCount: fn.replacesCount || 0
+        isFuture: !!fn.isFuture, isUnchanged: !!fn.isUnchanged, replacesCount: fn.replacesCount || 0,
+        replacedNames: fn.replacedNames || [],
+        showReplacedSystems: !!AppState.meta.showReplacedSystems
       });
       return { data: { id: fn.id, name: fn.name, category: fn.category, svgUri, w: width, h: height }, position: { ...(fn.position || { x: 300, y: 300 }) } };
     });
@@ -3564,8 +3616,13 @@ const DiagramViewController = (() => {
     cy.on('viewport', () => {
       clearTimeout(_vpTimer);
       _vpTimer = setTimeout(() => {
-        AppState.meta.diagramZoom = cy.zoom();
-        AppState.meta.diagramPan = { x: cy.pan().x, y: cy.pan().y };
+        if (mode === 'future') {
+          AppState.meta.futureZoom = cy.zoom();
+          AppState.meta.futurePan = { x: cy.pan().x, y: cy.pan().y };
+        } else {
+          AppState.meta.diagramZoom = cy.zoom();
+          AppState.meta.diagramPan = { x: cy.pan().x, y: cy.pan().y };
+        }
       }, 150);
     });
 
@@ -3593,7 +3650,6 @@ const DiagramViewController = (() => {
 
     // Drag end → snap to alignment then save position
     cy.on('dragfreeon', 'node', e => {
-      if (mode === 'future') return;
       const SNAP = 14;
       const pos = e.target.position();
       let sx = pos.x, sy = pos.y;
@@ -3603,7 +3659,13 @@ const DiagramViewController = (() => {
         if (Math.abs(p2.y - pos.y) < SNAP) sy = p2.y;
       });
       if (sx !== pos.x || sy !== pos.y) e.target.position({ x: sx, y: sy });
-      NodeManager.updatePosition(e.target.id(), sx, sy);
+      if (mode === 'future') {
+        AppState.meta.futurePositions = AppState.meta.futurePositions || {};
+        AppState.meta.futurePositions[e.target.id()] = { x: sx, y: sy };
+        touchState();
+      } else {
+        NodeManager.updatePosition(e.target.id(), sx, sy);
+      }
       AutoSave.schedule();
     });
 
@@ -3848,11 +3910,16 @@ const DiagramViewController = (() => {
     if (m === 'future') {
       if (toggleBtn) { toggleBtn.textContent = 'Future State'; toggleBtn.classList.add('active'); }
       if (banner) banner.classList.add('visible');
+      const replCb = document.getElementById('toggle-replaced-systems');
+      if (replCb) replCb.checked = !!AppState.meta.showReplacedSystems;
     } else {
       if (toggleBtn) { toggleBtn.textContent = 'Current State'; toggleBtn.classList.remove('active'); }
       if (banner) banner.classList.remove('visible');
     }
     refresh();
+    const z = m === 'future' ? AppState.meta.futureZoom : AppState.meta.diagramZoom;
+    const p = m === 'future' ? AppState.meta.futurePan  : AppState.meta.diagramPan;
+    if (z && p) { cy.zoom(z); cy.pan(p); } else { fit(); }
   }
 
   function getMode() { return mode; }
@@ -3895,6 +3962,7 @@ const GanttViewController = (() => {
   let tooltipEl    = null;
   let ppdScale     = 1.0; // x-axis zoom multiplier (Ctrl+wheel)
   let dragSrc      = null; // { type:'swimlane'|'task', cat?, taskId?, taskCat? }
+  let dropBefore   = true; // whether dragover is in the top half (insert before) or bottom half (insert after) of the hovered row
 
   // ── Helpers ────────────────────────────────────────────────────
   function ppd() {
@@ -4038,7 +4106,7 @@ const GanttViewController = (() => {
         div.addEventListener('dragend', () => {
           dragSrc = null;
           div.classList.remove('dragging');
-          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+          document.querySelectorAll('.drag-over-top,.drag-over-bottom,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom','drag-over-swimlane'));
         });
         div.addEventListener('dragover', e => {
           if (!dragSrc) return;
@@ -4093,26 +4161,29 @@ const GanttViewController = (() => {
         div.addEventListener('dragend', () => {
           dragSrc = null;
           div.classList.remove('dragging');
-          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+          document.querySelectorAll('.drag-over-top,.drag-over-bottom,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom','drag-over-swimlane'));
         });
         div.addEventListener('dragover', e => {
           if (!dragSrc || dragSrc.type !== 'task' || dragSrc.taskId === t.id) return;
           e.preventDefault();
-          div.classList.add('drag-over-top');
+          const rect = div.getBoundingClientRect();
+          dropBefore = (e.clientY - rect.top) < rect.height / 2;
+          div.classList.toggle('drag-over-top', dropBefore);
+          div.classList.toggle('drag-over-bottom', !dropBefore);
         });
-        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top'));
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top', 'drag-over-bottom'));
         div.addEventListener('drop', e => {
           e.preventDefault();
-          div.classList.remove('drag-over-top');
+          div.classList.remove('drag-over-top', 'drag-over-bottom');
           if (!dragSrc || dragSrc.type !== 'task' || dragSrc.taskId === t.id) return;
           const fromIdx = AppState.upgradeTargets.findIndex(u => u.id === dragSrc.taskId);
-          const toIdx   = AppState.upgradeTargets.findIndex(u => u.id === t.id);
-          if (fromIdx !== -1 && toIdx !== -1) {
+          if (fromIdx !== -1) {
             if (AppState.upgradeTargets[fromIdx].category !== t.category)
               AppState.upgradeTargets[fromIdx].category = t.category;
             const [removed] = AppState.upgradeTargets.splice(fromIdx, 1);
-            const newTo = AppState.upgradeTargets.findIndex(u => u.id === t.id);
-            AppState.upgradeTargets.splice(newTo, 0, removed);
+            let insertAt = AppState.upgradeTargets.findIndex(u => u.id === t.id);
+            if (!dropBefore) insertAt += 1;
+            AppState.upgradeTargets.splice(insertAt, 0, removed);
             StateHistory.push(); touchState(); AutoSave.schedule();
           }
           dragSrc = null; render();
@@ -4144,26 +4215,29 @@ const GanttViewController = (() => {
         div.addEventListener('dragend', () => {
           dragSrc = null;
           div.classList.remove('dragging');
-          document.querySelectorAll('.drag-over-top,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-swimlane'));
+          document.querySelectorAll('.drag-over-top,.drag-over-bottom,.drag-over-swimlane').forEach(el => el.classList.remove('drag-over-top','drag-over-bottom','drag-over-swimlane'));
         });
         div.addEventListener('dragover', e => {
           if (!dragSrc || dragSrc.type !== 'manual' || dragSrc.taskId === t.id) return;
           e.preventDefault();
-          div.classList.add('drag-over-top');
+          const rect = div.getBoundingClientRect();
+          dropBefore = (e.clientY - rect.top) < rect.height / 2;
+          div.classList.toggle('drag-over-top', dropBefore);
+          div.classList.toggle('drag-over-bottom', !dropBefore);
         });
-        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top'));
+        div.addEventListener('dragleave', () => div.classList.remove('drag-over-top', 'drag-over-bottom'));
         div.addEventListener('drop', e => {
           e.preventDefault();
-          div.classList.remove('drag-over-top');
+          div.classList.remove('drag-over-top', 'drag-over-bottom');
           if (!dragSrc || dragSrc.type !== 'manual' || dragSrc.taskId === t.id) return;
           const fromIdx = AppState.manualTasks.findIndex(u => u.id === dragSrc.taskId);
-          const toIdx   = AppState.manualTasks.findIndex(u => u.id === t.id);
-          if (fromIdx !== -1 && toIdx !== -1) {
+          if (fromIdx !== -1) {
             if (AppState.manualTasks[fromIdx].category !== t.category)
               AppState.manualTasks[fromIdx].category = t.category;
             const [removed] = AppState.manualTasks.splice(fromIdx, 1);
-            const newTo = AppState.manualTasks.findIndex(u => u.id === t.id);
-            AppState.manualTasks.splice(newTo, 0, removed);
+            let insertAt = AppState.manualTasks.findIndex(u => u.id === t.id);
+            if (!dropBefore) insertAt += 1;
+            AppState.manualTasks.splice(insertAt, 0, removed);
             StateHistory.push(); touchState(); AutoSave.schedule();
           }
           dragSrc = null; render();
@@ -4845,6 +4919,10 @@ const ExportController = (() => {
         keyNodeStyle: parsed.meta?.keyNodeStyle ? { ...KEY_NODE_DEFAULTS, ...parsed.meta.keyNodeStyle } : { ...KEY_NODE_DEFAULTS },
         diagramZoom: parsed.meta?.diagramZoom || null,
         diagramPan:  parsed.meta?.diagramPan  || null,
+        futureZoom: parsed.meta?.futureZoom || null,
+        futurePan:  parsed.meta?.futurePan  || null,
+        futurePositions: parsed.meta?.futurePositions || {},
+        showReplacedSystems: parsed.meta?.showReplacedSystems || false,
         logoDataUrl: parsed.meta?.logoDataUrl || null,
         theme: parsed.meta?.theme || 'light',
         customTheme: parsed.meta?.customTheme || { ...PRESET_THEMES.light },
@@ -5971,6 +6049,20 @@ const AppController = (() => {
       DiagramViewController.setMode(next);
     });
     document.getElementById('btn-back-to-current')?.addEventListener('click', () => DiagramViewController.setMode('current'));
+    document.getElementById('toggle-replaced-systems')?.addEventListener('change', e => {
+      AppState.meta.showReplacedSystems = e.target.checked;
+      touchState(); AutoSave.schedule();
+      DiagramViewController.refresh();
+    });
+    document.getElementById('btn-reset-future-layout')?.addEventListener('click', () => {
+      confirm('Reset future state layout to auto-computed positions?', () => {
+        StateHistory.push();
+        AppState.meta.futurePositions = {};
+        touchState(); AutoSave.schedule();
+        DiagramViewController.refresh();
+        showToast('Future layout reset.', 'success');
+      });
+    });
     document.getElementById('btn-zoom-in')?.addEventListener('click', () => DiagramViewController.zoomIn());
     document.getElementById('btn-zoom-out')?.addEventListener('click', () => DiagramViewController.zoomOut());
     document.getElementById('btn-fit')?.addEventListener('click', () => DiagramViewController.fit());
