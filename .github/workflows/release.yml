@@ -15,6 +15,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify index.html matches infra-mapper.html
+        run: |
+          if ! diff -q infra-mapper.html index.html > /dev/null 2>&1; then
+            echo "::error::index.html and infra-mapper.html are out of sync at tag ${GITHUB_REF_NAME}. The GitHub Pages site (which serves index.html) would not match this release. Re-run _assemble.ps1, commit both files, and re-tag."
+            exit 1
+          fi
+
       - name: Extract changelog section
         id: notes
         run: |
